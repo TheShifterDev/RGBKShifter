@@ -1,0 +1,1 @@
+g++ main.cpp -o test.bin -std=c++17 `libpng-config --ldflags`
