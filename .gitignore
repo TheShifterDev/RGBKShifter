@@ -1,1 +1,6 @@
 *~
+test.bin
+.clang-format
+.cache/*
+Built/*
+compile_commands.json
