@@ -10,6 +10,5 @@
 #include "MakeLowerCase.cpp"
 
 namespace Shifter{
-	int LoadImageAndShift(int shiftType, char* InFileDir, char* OutFileDir);
-	int RGBKShift(char* InFileDir, char* OutFileDir);
+int ShiftNearist(char *InFileDir, char *OutFileDir);
 }
