@@ -37,7 +37,7 @@ void write_imgpac(Image IMG, std::string NAM);
 
 #endif // RGBKS_IMAGE_HEAD_INCLUDE_BARRIER
 
-##ifdef RGBKS_IMAGE_IMPLEM
+#ifdef RGBKS_IMAGE_IMPLEM
 #ifndef RGBKS_IMAGE_BODY_INCLUDE_BARRIER
 #define RGBKS_IMAGE_BODY_INCLUDE_BARRIER
 
@@ -45,7 +45,72 @@ void write_imgpac(Image IMG, std::string NAM);
 
 	void write_imgpac(Image IMG, std::string NAM) {
 		// evaluate needed size
-		
+		size_t t_size = 0;
+		t_size += sizeof(Resolution);
+		t_size += sizeof(Colour)*(IMG.Size.Width*IMG.Size.Height);
+		t_size += sizeof(uint32_t);
+		t_size += sizeof(Glyph)*IMG.GlyphCount;
+		uint32_t t_curpos = 0;
+		uint32_t t_tarpos = 0;
+		// allocate size
+		std::vector<uint8_t> t_hold;
+		t_hold.resize(t_size/sizeof(uint8_t));
+		// dump image width and height into hold
+		uint8_t t_res[8];
+		t_res[0] = IMG.Size.Width;
+		t_res[4] = IMG.Size.Height;
+		t_tarpos += 8;
+		while (t_curpos<t_tarpos){
+			t_hold[t_curpos] = t_res[t_curpos];
+			t_curpos++;
+		}
+		// dump pixels in
+		t_tarpos += (IMG.Pixels.size()*4);
+		uint32_t t_ite = 0;
+		while (t_curpos<t_tarpos) {
+			t_hold[t_curpos+0] = IMG.Pixels[t_ite].R;
+			t_hold[t_curpos+1] = IMG.Pixels[t_ite].G;
+			t_hold[t_curpos+2] = IMG.Pixels[t_ite].B;
+			t_hold[t_curpos+3] = IMG.Pixels[t_ite].A;
+			t_ite++;t_curpos += 4;
+		}
+		// dump glyphcount into hold
+		t_tarpos += 4;
+		uint8_t t_cou[4];
+		t_ite = 0;
+		t_cou[0] = IMG.GlyphCount;
+		while (t_curpos<t_tarpos){
+			t_hold[t_curpos] = t_cou[t_ite];
+			t_ite++;t_curpos++;
+		}
+		// dump glyphs into hold
+		t_ite = 0;
+		while (t_curpos<t_tarpos) {
+			for (uint32_t i = 0;i<64;i++){
+				t_hold[t_curpos+i] = IMG.Glyphs[t_ite].Name[i];
+			}
+			t_curpos+=64;
+			// size
+			t_res[0] = IMG.Glyphs[t_ite].Size.Width;
+			t_res[4] = IMG.Glyphs[t_ite].Size.Height;
+			for (uint8_t i= 0;i<8;i++){
+				t_hold[t_curpos+i] = t_res[i];
+			}
+			t_curpos+=8;
+			// pos
+			t_res[0] = IMG.Glyphs[t_ite].Position.Width;
+			t_res[4] = IMG.Glyphs[t_ite].Position.Height;
+			for (uint8_t i= 0;i<8;i++){
+				t_hold[t_curpos+i] = t_res[i];
+			}
+			t_curpos+=8;
+			t_ite++;
+		}
+		// write char vector to disk
+		std::string t_nam = NAM+".stimpac";// "stoma image package"
+		std::ofstream t_out(t_nam,std::ios::out);
+		t_out << t_hold.data();
+		t_out.close();
 	}
 
 	Image Read_imgpac(std::string NAM) {
