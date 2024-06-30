@@ -1,0 +1,16 @@
+{
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"name": "C/C++ Runner: Debug Session",
+			"type": "lldb",
+			"request": "launch",
+			"args": [
+				"-s",
+				"./Examples/input/ahhhhh.png"
+			],
+			"cwd": "/home/matthew/Documents/Projects/CPP/rgbkShifter",
+			"program": "${workspaceFolder}/Built/rgbkshifter.bin"
+		}
+	]
+}
