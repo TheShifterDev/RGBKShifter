@@ -1,71 +1,125 @@
-#define RGBKS_IMAGE_IMPLEM
-#include "../Include/Image.hh"
+#define RGBKS_IMPLEM
+#include "../Include/rgbks.hh"
 
-#include "Shifter.cpp"
-// #include "MakeLowerCase.cpp"
+#include "MakeLowerCase.cpp"
 
 #include <cstring>
 #include <iostream>
 #include <string>
-#define HELPTEXT "\
-		<files> <args>\
-		Arguments		Description\n\
-		-p/--pack		= packs all fed files into a single output file\n\
-		-s/--shift		= shifts fed images colours to the extremes\n\
-		-o/--out		= next arg is the saved name of the packed file OR the prefix of all shifted files\n\
-		"
 
-std::string OutPrefix = "";//used in -o/--out 
+enum class CommandEnum{
+	Shift,
+	Atlas,
+	Paletise,
+
+	ENDOF
+};
+
+bool CommandList[(uint8_t)CommandEnum::ENDOF];
+
+std::string OutPrefix = "rgbkshifted_";//used in -o/--out
+std::string PaletFile = "";
+std::string HelpText = 
+		"<files> <args>"
+		"Arguments					Description\n"
+		"-s/--shift					= shifts fed images colours to the extremes\n"
+		"-a/--atlas					= packs all fed files into a single output atlas .stimpac file\n"
+		"-p/--paletise <PALETFILE>	= paletises	all input images with the palet file\n"
+		"-o/--out <NAME>				= NAME arg is the saved name of the packed file OR the prefix of all shifted files\n"
+		"-h/--help					= print this help text";
 
 int main(int argc, char *argv[]) {
-	std::string HelpText = HELPTEXT;
-	bool VALID_RESPONCE_RETURNED = false;
-	std::string Returned = "";
-	std::string FILENAME = "";
-	std::string FileToShift = "";
-	std::string FileToOut = "";
-
-	std::cout << "input name of image to shift\n";
-	std::cin >> FILENAME;
-	FileToShift = "./input/" + FILENAME;
-	FileToOut = "./output/" + FILENAME;
-
-	char *InCharString = new char[FileToShift.size() + 1];
-	std::copy(FileToShift.begin(), FileToShift.end(), InCharString);
-	InCharString[FileToShift.size()] = '\0';
-
-	char *OutCharString = new char[FileToOut.size() + 1];
-	std::copy(FileToOut.begin(), FileToOut.end(), OutCharString);
-	OutCharString[FileToOut.size()] = '\0';
-
-	while(!VALID_RESPONCE_RETURNED) {
-		std::cout << "input A for rgb,\n input B for stripes,\n input C for "
-					 "Perlin_Noise,\n Q to quit\n";
-		std::cin >> Returned;
-		std::cout << "\n";
-		Returned = MakeLowerCase::Lower(Returned);
-
-		if(Returned == "q") {
-			std::cout << "quiting programme\n";
-			VALID_RESPONCE_RETURNED = true;
-			return 0;
-		} else if(Returned == "a") {
-			std::cout << "selected option A\n";
-			VALID_RESPONCE_RETURNED = true;
-			//Shifter::LoadImageAndShift(0, InCharString, OutCharString);
-		} else if(Returned == "b") {
-			std::cout << "selected option B\n";
-			VALID_RESPONCE_RETURNED = true;
-			//Shifter::LoadImageAndShift(1, InCharString, OutCharString);
-		} else if(Returned == "c") {
-			std::cout << "selected option C\n";
-			VALID_RESPONCE_RETURNED = true;
-			//Shifter::LoadImageAndShift(2, InCharString, OutCharString);
-		} else {
-			std::cout << "no valid responce sent\n";
-		}
-		// 0 = RGBK
-		// 1 = stripes
+	// parse args
+	std::vector<std::string> files;
+	std::vector<RGBKS::Image> images;
+	std::string hold;
+	int t_i = 1;
+	if (argc == 1){
+		printf("No args input.\nUse -h or --help for help.\n");
+		exit(1);
 	}
+	while(t_i<argc){
+		hold = argv[t_i];
+		hold = MakeLowerCase::Lower(hold);
+		if(hold[0] == '-'){
+			if (hold == "-h" || hold == "--help") {
+				// help request
+				printf(HelpText.c_str());
+				exit(0);			
+			}else if(hold == "-o" || hold == "--out"){
+				// output name
+				OutPrefix = argv[t_i+1];
+				t_i+=2;
+			}else if(hold == "-p" || hold == "--paletise"){
+				// output name
+				PaletFile = argv[t_i+1];
+				CommandList[(uint8_t)CommandEnum::Paletise] = true;
+				t_i+=2;				
+			}else if(hold == "-s" || hold == "--shift"){
+				// shift the values of all input files
+				CommandList[(uint8_t)CommandEnum::Shift] = true;
+				t_i++;
+			}else if(hold == "-a" || hold == "--atlas"){
+				// take all input files and output a .stimpac
+				CommandList[(uint8_t)CommandEnum::Atlas] = true;
+				t_i++;
+			}else{
+				// invalid - option
+				t_i++;
+			}
+		}else{ // its a file
+			files.push_back(hold);
+			t_i++;
+		}
+	}
+
+	// read all images
+	std::string name;
+	std::string exten;
+	uint32_t extenpos;
+	RGBKS::Image image;
+	std::string printstring;
+	for (uint32_t i = 0;i < files.size();i++){
+		// seperate filename and file extension
+		extenpos = files.size()-1;
+		while (extenpos > 0){
+			if (files[i][extenpos] == '.'){
+				break;
+			}else{extenpos--;}
+		}
+		if (extenpos == 0) {
+			printstring = files[i]+" has no extension";
+			printf(printstring.c_str());
+		}else{
+			name = files[i].substr(0,extenpos);
+			exten = files[i].substr(extenpos,files.size());
+			if (exten == ".png") {
+				image = RGBKS::Read_png(name);
+				images.push_back(image);
+			}else if (exten == ".stimpac"){
+				image = RGBKS::Read_imgpac(name);
+				images.push_back(image);
+			}else{
+				printstring = files[i]+" has an invalid extension of "+exten;
+				printf(printstring.c_str());
+			}
+		}
+	}
+
+	// test if shifting was requested
+	if (CommandList[(uint8_t)CommandEnum::Shift] == 0) {
+		for (uint32_t i = 0;i < images.size();i++){
+			RGBKS::ShiftNearist(images[i]);
+		}
+	}
+	// test if atlas packing was requested
+	if (CommandList[(uint8_t)CommandEnum::Atlas] == 0) {
+	
+	}
+	// test if paletiseing was requested
+	if (CommandList[(uint8_t)CommandEnum::Paletise] == 0) {
+	
+	}
+
 	return 0;
 }
