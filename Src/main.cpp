@@ -81,7 +81,7 @@ int main(int argc, char *argv[]) {
 	std::string printstring;
 	for (uint32_t i = 0;i < files.size();i++){
 		// seperate filename and file extension
-		extenpos = files.size()-1;
+		extenpos = files[i].size()-1;
 		while (extenpos > 0){
 			if (files[i][extenpos] == '.'){
 				break;
@@ -92,7 +92,7 @@ int main(int argc, char *argv[]) {
 			printf(printstring.c_str());
 		}else{
 			name = files[i].substr(0,extenpos);
-			exten = files[i].substr(extenpos,files.size());
+			exten = files[i].substr(extenpos,files[i].size());
 			if (exten == ".png") {
 				image = RGBKS::Read_png(name);
 				images.push_back(image);
