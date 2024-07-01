@@ -84,6 +84,7 @@ Image Read_png(std::string NAM) {
 	t_ret.Size = {t_file.get_width(), t_file.get_height()};
 	// pngs only have 1 glyph
 	t_ret.GlyphCount = 1;
+	t_ret.Glyphs.resize(t_ret.GlyphCount);
 	for(uint32_t i = 0; i < NAM.size(); i++) {
 		t_ret.Glyphs[0].Name[i] = NAM[i];
 	}
