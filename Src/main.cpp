@@ -3,8 +3,6 @@
 #define RGBKS_IMPLEM
 #include "../Include/rgbks.hh"
 
-#include "MakeLowerCase.cpp"
-
 #include <cstring>
 #include <iostream>
 #include <string>
@@ -24,18 +22,33 @@ void SliceOutLastOfChar(std::string INP, char TARG, std::string &OutStart,
 bool CommandList[(uint8_t)CommandEnum::ENDOF] = {};
 
 std::string OutName = "rgbkshifted"; // used in -n/--name
-std::string OutDir = ""; // used in -o/--out
+std::string OutDir = "";			 // used in -o/--out
 std::string PaletFile = "";
+// clang-format off
+std::vector<RGBKS::Colour> PalletColours{
+	// shifter pallet
+	{255, 255, 255, 255}, // white
+	{0, 0, 0, 255},		  // black
+	{0, 255, 255, 255},	  // cyan
+	{255, 0, 255, 255},	  // purple
+	{255, 255, 0, 255},	  // orange
+	{255, 0, 0, 255},	  // red
+	{0, 255, 0, 255},	  // green
+	{0, 0, 255, 255},	  // blue
+};
+// clang-format on
 
 // clang-format off
 std::string HelpText =
 	"Arguments					Description\n"
-	"-s/--shift					= shifts fed images colours to the extremes\n"
+	"-s/--shift					= shifts fed images colours to the extremes !!!disables paletise!!!\n"
+	"-p/--paletise <PALETFILE>	= paletises	all input images with the palet file !!!disables shift!!!\n"
 	"-a/--atlas					= packs all fed files into a single output atlas .stimpac file\n"
-	"-p/--paletise <PALETFILE>	= paletises	all input images with the palet file\n"
 	"-o/--out <DIRECTORY>		= DIRECTORY arg is the location of the writen files\n"
 	"-n/--name <NAME>			= NAME arg is the saved name of the packed file OR the prefix of all shifted files\n"
-	"-h/--help					= print this help text";
+	"-h/--help					= print this help text\n"
+	"Notes\n"
+	"1) arguments must be seperated, (-s -a) is correct, (-sa) will be ignored as an invalid option";
 // clang-format on
 
 int main(int argc, char *argv[]) {
@@ -63,14 +76,17 @@ int main(int argc, char *argv[]) {
 			} else if(hold == "-o" || hold == "--out") {
 				// output location
 				OutDir = argv[t_i + 1];
+				OutDir += '/';
 				t_i += 2;
 			} else if(hold == "-p" || hold == "--paletise") {
 				// palett to use
 				PaletFile = argv[t_i + 1];
+				CommandList[(uint8_t)CommandEnum::Shift] = false;
 				CommandList[(uint8_t)CommandEnum::Paletise] = true;
 				t_i += 2;
 			} else if(hold == "-s" || hold == "--shift") {
 				// shift the values of all input files
+				CommandList[(uint8_t)CommandEnum::Paletise] = false;
 				CommandList[(uint8_t)CommandEnum::Shift] = true;
 				t_i++;
 			} else if(hold == "-a" || hold == "--atlas") {
@@ -105,20 +121,33 @@ int main(int argc, char *argv[]) {
 		} else {
 			printstring = files[i] + " has an invalid extension of ." + exten;
 			printf(printstring.c_str());
+			exit(1);
 		}
 	}
 
-	// test if shifting was requested
-	if(CommandList[(uint8_t)CommandEnum::Shift]) {
+	// test if shifting or paletising was requested
+	if(CommandList[(uint8_t)CommandEnum::Shift] ||
+	   CommandList[(uint8_t)CommandEnum::Paletise]) {
+		// test if paletiseing was requested
+		if(CommandList[(uint8_t)CommandEnum::Paletise]) {
+			SliceOutLastOfChar(PaletFile, '.', name, exten);
+			if(exten == "png") {
+				RGBKS::Image t_image = RGBKS::Read_png(name);
+				PalletColours = RGBKS::ExtractPallet_Image(t_image);
+			} else {
+				printstring =
+					PaletFile + " has an invalid extension of ." + exten;
+				printf(printstring.c_str());
+				exit(1);
+			}
+		}
 		for(uint32_t i = 0; i < images.size(); i++) {
-			RGBKS::ShiftNearist(images[i]);
+			RGBKS::PalletiseImage(images[i], PalletColours);
 		}
 	}
+
 	// test if atlas packing was requested
 	if(CommandList[(uint8_t)CommandEnum::Atlas]) {
-	}
-	// test if paletiseing was requested
-	if(CommandList[(uint8_t)CommandEnum::Paletise]) {
 	}
 
 	// write file
@@ -129,9 +158,13 @@ int main(int argc, char *argv[]) {
 		for(uint32_t i = 0; i < images.size(); i++) {
 			SliceOutLastOfChar(images[i].Glyphs[0].Name, '/', writedir,
 							   writenam);
-			if (OutName != "") {writenam = OutName;}
-			RGBKS::Write_imgpac(images[i],OutDir + writenam);
+			if(OutName != "") {
+				writenam = OutName;
+			}
 		}
+		RGBKS::Image t_outima = RGBKS::MergeImages(images);
+		//RGBKS::Write_imgpac(t_outima, OutDir + writenam);
+		RGBKS::Write_png(t_outima, OutDir + writenam);
 	} else {
 		// write as .png
 		for(uint32_t i = 0; i < images.size(); i++) {
@@ -139,7 +172,7 @@ int main(int argc, char *argv[]) {
 			SliceOutLastOfChar(images[i].Glyphs[0].Name, '/', writedir,
 							   writenam);
 			// write file
-			RGBKS::Write_png(images[i],OutDir + OutName+ writenam);
+			RGBKS::Write_png(images[i], OutDir + OutName + writenam);
 		}
 	}
 
@@ -166,9 +199,11 @@ void SliceOutLastOfChar(std::string INP, char TARG, std::string &OutStart,
 		OutEnd = holdstr.substr(extenpos + 1, holdstr.size());
 	}
 }
-std::string LowerCaseify(std::string INP){
+std::string LowerCaseify(std::string INP) {
 	for(uint32_t i = 0; i < INP.length(); i++) {
-		if(INP[i] > 64 && INP[i] < 91) {INP[i] += 32;}
+		if(INP[i] > 64 && INP[i] < 91) {
+			INP[i] += 32;
+		}
 	}
 	return INP;
 }
