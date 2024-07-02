@@ -2,12 +2,65 @@
 	"version": "0.2.0",
 	"configurations": [
 		{
-			"name": "C/C++ Runner: Debug Session",
+			"name": "Shift",
 			"type": "lldb",
 			"request": "launch",
 			"args": [
+				"-o",
+				"./Examples/Output",
 				"-s",
-				"./Examples/input/ahhhhh.png"
+				"-n",
+				"Shifted_",
+				"./Examples/Textures/Example.png"
+			],
+			"cwd": "/home/matthew/Documents/Projects/CPP/rgbkShifter",
+			"program": "${workspaceFolder}/Built/rgbkshifter.bin"
+		},
+		{
+			"name": "Amber-Glow_Paletise",
+			"type": "lldb",
+			"request": "launch",
+			"args": [
+				"-o",
+				"./Examples/Output",
+				"-p",
+				"./Examples/Pallets/amber-glow.png",
+				"-n",
+				"Amber-Glow_Paletised_",
+				"./Examples/Textures/Example.png"
+			],
+			"cwd": "/home/matthew/Documents/Projects/CPP/rgbkShifter",
+			"program": "${workspaceFolder}/Built/rgbkshifter.bin"
+		},
+		{
+			"name": "Japanese-Woodblock_Paletise",
+			"type": "lldb",
+			"request": "launch",
+			"args": [
+				"-o",
+				"./Examples/Output",
+				"-p",
+				"./Examples/Pallets/japanese-woodblock.png",
+				"-n",
+				"Japanese-Woodblock_Paletised_",
+				"./Examples/Textures/Example.png"
+			],
+			"cwd": "/home/matthew/Documents/Projects/CPP/rgbkShifter",
+			"program": "${workspaceFolder}/Built/rgbkshifter.bin"
+		},
+		{
+			"name": "Atlas",
+			"type": "lldb",
+			"request": "launch",
+			"args": [
+				"-o",
+				"./Examples/Output",
+				"-a",
+				"-n",
+				"TestAtlas",
+				"./Examples/Textures/Example.png",
+				"./Examples/Textures/TriColCamo.png",
+				"./Examples/Textures/QuadColCamo.png"
 			],
 			"cwd": "/home/matthew/Documents/Projects/CPP/rgbkShifter",
 			"program": "${workspaceFolder}/Built/rgbkshifter.bin"
