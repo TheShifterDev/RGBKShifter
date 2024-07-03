@@ -11,7 +11,7 @@
 				"-s",
 				"-n",
 				"Shifted_",
-				"./Examples/Textures/Example.png"
+				"./Examples/Textures/ExampleA.png"
 			],
 			"cwd": "/home/matthew/Documents/Projects/CPP/rgbkShifter",
 			"program": "${workspaceFolder}/Built/rgbkshifter.bin"
@@ -27,7 +27,7 @@
 				"./Examples/Pallets/amber-glow.png",
 				"-n",
 				"Amber-Glow_Paletised_",
-				"./Examples/Textures/Example.png"
+				"./Examples/Textures/ExampleA.png"
 			],
 			"cwd": "/home/matthew/Documents/Projects/CPP/rgbkShifter",
 			"program": "${workspaceFolder}/Built/rgbkshifter.bin"
@@ -43,7 +43,7 @@
 				"./Examples/Pallets/japanese-woodblock.png",
 				"-n",
 				"Japanese-Woodblock_Paletised_",
-				"./Examples/Textures/Example.png"
+				"./Examples/Textures/ExampleA.png"
 			],
 			"cwd": "/home/matthew/Documents/Projects/CPP/rgbkShifter",
 			"program": "${workspaceFolder}/Built/rgbkshifter.bin"
@@ -58,9 +58,10 @@
 				"-a",
 				"-n",
 				"TestAtlas",
-				"./Examples/Textures/Example.png",
-				"./Examples/Textures/TriColCamo.png",
-				"./Examples/Textures/QuadColCamo.png"
+				"./Examples/Textures/ExampleA.png",
+				"./Examples/Textures/ExampleB.png",
+				"./Examples/Textures/ExampleC.png",
+				"./Examples/Textures/ExampleD.png"
 			],
 			"cwd": "/home/matthew/Documents/Projects/CPP/rgbkShifter",
 			"program": "${workspaceFolder}/Built/rgbkshifter.bin"
