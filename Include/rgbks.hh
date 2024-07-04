@@ -31,7 +31,7 @@ struct Image {
 };
 #define GETCORD(X, Y, XMAX) (X + (Y * XMAX))
 
-bool TestPacking(Resolution MSIZ,std::vector<Resolution> SSIZ,std::vector<uint32_t>& MAP);
+bool TestPacking(Resolution MASTERSIZE,std::vector<Resolution> SLAVESIZE,std::vector<uint32_t>& MAP);
 float GetRGBColourDistance(Colour A, Colour B);
 void PalletiseImage(Image &IMG, std::vector<Colour> PAL);
 Image MergeImages(std::vector<Image> IMG);
@@ -45,39 +45,39 @@ void Write_imgpac(Image IMG, std::string NAM);
 
 #endif // RGBKS_HEAD_INCLUDE_BARRIER
 
-#ifdef RGBKS_IMPLEM
+##ifdef RGBKS_IMPLEM
 #ifndef RGBKS_BODY_INCLUDE_BARRIER
 #define RGBKS_BODY_INCLUDE_BARRIER
 
 namespace RGBKS {
 
-bool TestPacking(Resolution MSIZ,std::vector<Resolution> SSIZ,std::vector<uint32_t>& MAP){
+bool TestPacking(Resolution MASTERSIZE,std::vector<Resolution> SLAVESIZE,std::vector<uint32_t>& MAP){
 	// BUG: seems to retern false despite being vastly oversized
 	// NOTE: assumes ssiz is ordered by volume
-	MAP.resize(MSIZ.Width*MSIZ.Height);
+	MAP.resize(MASTERSIZE.Width*MASTERSIZE.Height);
 	bool AllocatedSpace;
-	for (uint32_t CurrentShape = 0;CurrentShape < SSIZ.size();CurrentShape++) {
+	for (uint32_t CurrentShape=0;CurrentShape<SLAVESIZE.size();CurrentShape++){
 		AllocatedSpace = false;
-		for (uint32_t mh = 0;mh < MSIZ.Height;mh++){
-		for (uint32_t mw = 0;mw < MSIZ.Width ;mw++){
+		for (uint32_t MasterH=0;MasterH<MASTERSIZE.Height;MasterH++){
+		for (uint32_t MasterW=0;MasterW<MASTERSIZE.Width ;MasterW++){
 			// check if position starts with empty pixel
-			if(MAP[GETCORD(mw, mh, MSIZ.Width)] == 0) {
+			if(MAP[GETCORD(MasterW,MasterH,MASTERSIZE.Width)] == 0) {
 				// check if out of height or width bounds of master image
-				if((SSIZ[CurrentShape].Height + mh) > MSIZ.Height
-				|| (SSIZ[CurrentShape].Width  + mw) > MSIZ.Width){
+				if((SLAVESIZE[CurrentShape].Height+MasterH)>MASTERSIZE.Height
+				|| (SLAVESIZE[CurrentShape].Width +MasterW)>MASTERSIZE.Width){
 					goto CollidingLocation;
 				}
 				// check if position collides with previously written positions
-				for(uint32_t sh = 0; sh < SSIZ[CurrentShape].Height;sh++) {
-				for(uint32_t sw = 0; sw < SSIZ[CurrentShape].Width ;sw++) {
-					if(MAP[GETCORD(mw + sw, mh + sh, MSIZ.Width)] != 0){
+				for(uint32_t SlaveH=0;SlaveH<SLAVESIZE[CurrentShape].Height;SlaveH++){
+				for(uint32_t SlaveW=0;SlaveW<SLAVESIZE[CurrentShape].Width ;SlaveW++){
+					if(MAP[GETCORD((MasterW+SlaveW),(MasterH+SlaveH),MASTERSIZE.Width)] != 0){
 						goto CollidingLocation;
 					}
 				}}
 				 // mark position filled
-				for(uint32_t sh = 0; sh < SSIZ[CurrentShape].Height;sh++) {
-				for(uint32_t sw = 0; sw < SSIZ[CurrentShape].Width ;sw++) {
-					MAP[GETCORD(mw + sw, mh + sh, MSIZ.Width)] = CurrentShape+1;
+				for(uint32_t SlaveH=0;SlaveH<SLAVESIZE[CurrentShape].Height;SlaveH++){
+				for(uint32_t SlaveW=0;SlaveW<SLAVESIZE[CurrentShape].Width ;SlaveW++){
+					MAP[GETCORD((MasterW+SlaveW),(MasterH+SlaveH),MASTERSIZE.Width)] = CurrentShape+1;
 				}}
 				AllocatedSpace = true;
 				goto CurrentVolumestDrawn;
@@ -85,7 +85,7 @@ bool TestPacking(Resolution MSIZ,std::vector<Resolution> SSIZ,std::vector<uint32
 			}
 		}}
 		CurrentVolumestDrawn:;
-		if (AllocatedSpace == false){return false;}// MSIZ cannot contain all SSIZ's
+		if (AllocatedSpace == false){return false;}// MASTERSIZE cannot contain all SLAVESIZE's
 	}
 	return true; // all SSIZ fit within MSIZ
 }
@@ -119,7 +119,6 @@ Image MergeImages(std::vector<Image> IMG) {
 	// -------------------GET_RESOLUTION----------------------------//
 	ReorderByVolume(IMG);
 	std::vector<Resolution> ImageResolutions(IMG.size());
-
 	uint32_t RequiredVolume = 0;
 	// get total required volume
 	for(uint32_t i = 0; i < IMG.size(); i++) {
@@ -129,22 +128,21 @@ Image MergeImages(std::vector<Image> IMG) {
 	// get base total size for new image
 	uint32_t hold = 0;
 	Resolution ExpectedSize = IMG[0].Size;
-
 	while (ExpectedSize.Width*ExpectedSize.Height < RequiredVolume){
 		ExpectedSize.Width++;ExpectedSize.Height++;
 	}
-
 	Resolution MaxLogicalSize = {
 		(uint32_t)(IMG[0].Size.Width*(IMG.size()+1)),
 		(uint32_t)(IMG[0].Size.Height*(IMG.size()+1))
 	};
-
+	std::vector<uint32_t> DrawMap;
 	while (TestPacking(ExpectedSize,ImageResolutions,DrawMap) == false) {
 		if(hold%2)	{ExpectedSize.Height++;}
 		else		{ExpectedSize.Width++;}
 		if (ExpectedSize.Width > MaxLogicalSize.Width
 		&& ExpectedSize.Height > MaxLogicalSize.Height){
-			exit(4);
+			//exit(4);
+			break;
 		}
 		hold++;
 	}
