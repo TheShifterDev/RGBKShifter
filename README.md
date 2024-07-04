@@ -7,7 +7,9 @@ png++ - mand
 "Polyducks" for the "japanese woodblock" pallet used in testing https://lospec.com/palette-list/japanese-woodblock
 ## Notes
 # TODO
-* [ ] have atlas gen trim unused vertical space
+* [ ] change packer to test if a restricted size of image could contain all the subimages and return the size in res
+* [ ] fix bug where creating an atlas always inores the last fed image
+* [x] have atlas gen trim unused vertical space
 * [ ] rename confusing variable names to clearer ones
 * [ ] change code to have a unified style
 * [x] remove glyphcount redundant integer

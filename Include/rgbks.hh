@@ -52,44 +52,42 @@ void Write_imgpac(Image IMG, std::string NAM);
 namespace RGBKS {
 
 bool TestPacking(Resolution MSIZ,std::vector<Resolution> SSIZ,std::vector<uint32_t>& MAP){
-	// assumes ssiz is ordered by volume
+	// BUG: seems to retern false despite being vastly oversized
+	// NOTE: assumes ssiz is ordered by volume
 	MAP.resize(MSIZ.Width*MSIZ.Height);
-	bool safeplace;
-	bool drawable;
-	for (uint32_t c = 0;c<SSIZ.size();c++) {
-		safeplace = true;
-		for (uint32_t mh = 0;mh<MSIZ.Height;mh++) {
-		for (uint32_t mw = 0;mw<MSIZ.Width;mw++) {
-			if(MAP[GETCORD(mw, mh, MSIZ.Width)] == 0) {// find first location to test for empty space
-				for(uint32_t sh = 0; sh < SSIZ[c].Height;sh++) {
-					if((mh + sh) > MSIZ.Height) {
-						safeplace = false;goto CollidingLocation; // out of height bounds of master image
-					}
-				for(uint32_t sw = 0; sw < SSIZ[c].Width;sw++) {
-					if((mw + sw) > MSIZ.Width) {
-						safeplace = false;goto CollidingLocation; // out of width bounds of master image 
-					}
-					if(MAP[GETCORD(mw + sw,mh + sh,MSIZ.Width)] != 0){
-						safeplace = false;goto CollidingLocation; // position preoccupied
+	bool AllocatedSpace;
+	for (uint32_t CurrentShape = 0;CurrentShape < SSIZ.size();CurrentShape++) {
+		AllocatedSpace = false;
+		for (uint32_t mh = 0;mh < MSIZ.Height;mh++){
+		for (uint32_t mw = 0;mw < MSIZ.Width ;mw++){
+			// check if position starts with empty pixel
+			if(MAP[GETCORD(mw, mh, MSIZ.Width)] == 0) {
+				// check if out of height or width bounds of master image
+				if((SSIZ[CurrentShape].Height + mh) > MSIZ.Height
+				|| (SSIZ[CurrentShape].Width  + mw) > MSIZ.Width){
+					goto CollidingLocation;
+				}
+				// check if position collides with previously written positions
+				for(uint32_t sh = 0; sh < SSIZ[CurrentShape].Height;sh++) {
+				for(uint32_t sw = 0; sw < SSIZ[CurrentShape].Width ;sw++) {
+					if(MAP[GETCORD(mw + sw, mh + sh, MSIZ.Width)] != 0){
+						goto CollidingLocation;
 					}
 				}}
-				CollidingLocation:; // location would collide with preexisting drawn image
-				if(safeplace) { // draw and mark filled
-					uint32_t masterpoint;
-					for(uint32_t sh = 0; sh < SSIZ[c].Height;sh++) {
-					for(uint32_t sw = 0; sw < SSIZ[c].Width;sw++) {
-						masterpoint = GETCORD(mw + sw, mh + sh,MSIZ.Width);
-						MAP[masterpoint] = c+1;
-					}}
-					drawable = true;
-					goto CurrentVolumestDrawn;
-				}
+				 // mark position filled
+				for(uint32_t sh = 0; sh < SSIZ[CurrentShape].Height;sh++) {
+				for(uint32_t sw = 0; sw < SSIZ[CurrentShape].Width ;sw++) {
+					MAP[GETCORD(mw + sw, mh + sh, MSIZ.Width)] = CurrentShape+1;
+				}}
+				AllocatedSpace = true;
+				goto CurrentVolumestDrawn;
+				CollidingLocation:;
 			}
 		}}
-		CurrentVolumestDrawn:; // volumest[c] has been drawn
-		if (!drawable){return false;}
+		CurrentVolumestDrawn:;
+		if (AllocatedSpace == false){return false;}// MSIZ cannot contain all SSIZ's
 	}
-	return true;
+	return true; // all SSIZ fit within MSIZ
 }
 
 void ReorderByVolume(std::vector<Image>& IMG){
@@ -119,65 +117,76 @@ void ReorderByVolume(std::vector<Image>& IMG){
 Image MergeImages(std::vector<Image> IMG) {
 	// clang-format off
 	// -------------------GET_RESOLUTION----------------------------//
-	uint32_t height = 0;
-	uint32_t oldheight;
-	uint32_t width = 0;
-	uint32_t oldwidth;
-
 	ReorderByVolume(IMG);
-	std::vector<uint32_t> DrawMap;
 	std::vector<Resolution> ImageResolutions(IMG.size());
 
+	uint32_t RequiredVolume = 0;
+	// get total required volume
 	for(uint32_t i = 0; i < IMG.size(); i++) {
-		ImageResolutions[i] = IMG[i].Size;		
+		ImageResolutions[i] = IMG[i].Size;
+		RequiredVolume += (IMG[i].Size.Width*IMG[i].Size.Height);
 	}
 	// get base total size for new image
-	width = IMG[0].Size.Width;
-	height = IMG[0].Size.Height;
-	bool foundsize = false;
-	while (foundsize == false) {
-		height++;
-		width++;
-		foundsize = TestPacking({width,height}, ImageResolutions,DrawMap);
+	uint32_t hold = 0;
+	Resolution ExpectedSize = IMG[0].Size;
+
+	while (ExpectedSize.Width*ExpectedSize.Height < RequiredVolume){
+		ExpectedSize.Width++;ExpectedSize.Height++;
+	}
+
+	Resolution MaxLogicalSize = {
+		(uint32_t)(IMG[0].Size.Width*(IMG.size()+1)),
+		(uint32_t)(IMG[0].Size.Height*(IMG.size()+1))
+	};
+
+	while (TestPacking(ExpectedSize,ImageResolutions,DrawMap) == false) {
+		if(hold%2)	{ExpectedSize.Height++;}
+		else		{ExpectedSize.Width++;}
+		if (ExpectedSize.Width > MaxLogicalSize.Width
+		&& ExpectedSize.Height > MaxLogicalSize.Height){
+			exit(4);
+		}
+		hold++;
 	}
 	// ---------------------------TRIMMING--------------------------------//
-	oldwidth = width;
-	oldheight = height;
-	while (width > 0) {
-	for(uint32_t i = 0; i < oldwidth; i++) {
-			if(DrawMap[GETCORD(width - 1, i, oldwidth)] != 0) {goto UsedWidthFound;}
-	}width--;}
+	/*
+	Resolution OldExpectedSize = ExpectedSize;
+	while (ExpectedSize.Width > 0) {
+	for(uint32_t i = 0; i < OldExpectedSize.Width; i++) {
+			if(DrawMap[GETCORD(ExpectedSize.Width - 1, i, OldExpectedSize.Width)] != 0) {goto UsedWidthFound;}
+	}ExpectedSize.Width--;}
 	UsedWidthFound:;
-	while (height > 0) {
-	for (uint32_t i = 0; i < oldheight; i++) {
-		if(DrawMap[GETCORD(i, height - 1, oldwidth)] != 0) {goto UsedHeightFound;}
-	}height--;}
+	while (ExpectedSize.Height > 0) {
+	for (uint32_t i = 0; i < OldExpectedSize.Height; i++) {
+		if(DrawMap[GETCORD(i, ExpectedSize.Height - 1, OldExpectedSize.Height)] != 0) {goto UsedHeightFound;}
+	}ExpectedSize.Height--;}
 	UsedHeightFound:;
 
 	// copy old drawmap into new drawmap
 	std::vector<uint32_t> OldDrawMap = DrawMap;
-	DrawMap.resize(width * height);
-	for (uint32_t h = 0;h<height;h++) {
-	for (uint32_t w = 0;w<width;w++) {
-		DrawMap[GETCORD(w,h,width)] = OldDrawMap[GETCORD(w,h,oldwidth)];		
+	DrawMap.resize(ExpectedSize.Width * ExpectedSize.Height);
+	for (uint32_t h = 0;h<ExpectedSize.Height;h++) {
+	for (uint32_t w = 0;w<ExpectedSize.Width;w++) {
+		DrawMap[GETCORD(w,h,ExpectedSize.Width)] = OldDrawMap[GETCORD(w,h,OldExpectedSize.Width)];		
 	}}
+	*/
 	// ---------------------SET_SIZE------------------------------------//
 	Image ret;
-	ret.Size = {width, height};
+	ret.Size = ExpectedSize;
 	ret.Pixels.resize(DrawMap.size());
 	// ---------------------------DRAWING--------------------------------//
 	uint32_t maspoint;
 	uint32_t subpoint;
-	for(uint32_t i = 0; i < IMG.size(); i++) {
+	for(uint32_t CurrentShape = 0; CurrentShape < IMG.size(); CurrentShape++) {
 		for(uint32_t mh = 0; mh < ret.Size.Height; mh++) {
 		for(uint32_t mw = 0; mw < ret.Size.Width; mw++) {
-			if (i == (DrawMap[GETCORD(mw, mh, ret.Size.Width)]-1)) {// find owned location
+			if ((DrawMap[GETCORD(mw, mh, ret.Size.Width)]-1) == CurrentShape) {// find owned location
 				// draw
-				for(uint32_t sh = 0; sh < IMG[i].Size.Height;sh++) {
-				for(uint32_t sw = 0; sw < IMG[i].Size.Width;sw++) {
+				for(uint32_t sh = 0; sh < IMG[CurrentShape].Size.Height;sh++) {
+				for(uint32_t sw = 0; sw < IMG[CurrentShape].Size.Width ;sw++) {
 					maspoint = GETCORD(mw + sw, mh + sh,ret.Size.Width);
-					subpoint = GETCORD(sw, sh, IMG[i].Size.Width);
-					ret.Pixels[maspoint] = IMG[i].Pixels[subpoint];
+					subpoint = GETCORD(sw, sh, IMG[CurrentShape].Size.Width);
+					ret.Pixels[maspoint] = IMG[CurrentShape].Pixels[subpoint];
 				}}
 				goto DrawDone;
 			}
