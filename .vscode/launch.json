@@ -65,7 +65,8 @@
 				"./Examples/Textures/ExampleA.png",
 				"./Examples/Textures/ExampleB.png",
 				"./Examples/Textures/ExampleC.png",
-				"./Examples/Textures/ExampleD.png"
+				"./Examples/Textures/ExampleD.png",
+				"./Examples/Textures/ExampleE.png",
 			],
 			"cwd": "/home/matthew/Documents/Projects/CPP/rgbkShifter",
 			"program": "${workspaceFolder}/Built/rgbkshifter.bin"
@@ -83,7 +84,8 @@
 				"./Examples/Textures/ExampleA.png",
 				"./Examples/Textures/ExampleB.png",
 				"./Examples/Textures/ExampleC.png",
-				"./Examples/Textures/ExampleD.png"
+				"./Examples/Textures/ExampleD.png",
+				"./Examples/Textures/ExampleE.png",
 			],
 			"cwd": "/home/matthew/Documents/Projects/CPP/rgbkShifter",
 			"program": "${workspaceFolder}/Built/rgbkshifter.bin"
