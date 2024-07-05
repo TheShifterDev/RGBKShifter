@@ -10,6 +10,7 @@ png++ - mand
 * [ ] change packer to test for unused lines and columns and trimm them
 * [ ] rename confusing variable names to clearer ones
 * [ ] change code to have a unified style
+* [x] move to string in glyph
 * [x] fix bug where creating an atlas always inores the last fed image
 * [x] have atlas gen trim unused vertical space
 * [x] remove glyphcount redundant integer

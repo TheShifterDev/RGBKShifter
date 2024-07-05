@@ -20,7 +20,7 @@ struct Colour {
 	uint8_t A = 0;
 };
 struct Glyph {
-	char Name[64] = "Unnamed";
+	std::string Name = "Unnamed";
 	Resolution Size = {64, 64};
 	Resolution Position = {0, 0};
 };
@@ -36,6 +36,7 @@ struct Image {
 // "GETCORD((MainXPos + SubXPos), (MainYPos + SubYPos),MainImage.Size.Width)"
 // CAUSED A BUG THAT TOOK DAYS TO TRACK
 
+std::vector<Image> ReorderByVolume(std::vector<Image> IMG);
 uint32_t GetCoordinate(uint32_t XPOS,uint32_t YPOS,uint32_t MAXX);
 float GetRGBColourDistance(Colour A, Colour B);
 void PalletiseImage(Image &IMG, std::vector<Colour> PAL);
@@ -58,18 +59,17 @@ namespace RGBKS {
 inline uint32_t GetCoordinate(uint32_t XPOS,uint32_t YPOS,uint32_t MAXX){
 	return (XPOS + (YPOS * MAXX));
 }
-void ReorderByVolume(std::vector<Image>& IMG){
-	std::vector<Image> UnorderedImages = IMG;
+std::vector<Image> ReorderByVolume(std::vector<Image> UNORDERED){
+	std::vector<uint32_t> volumest(UNORDERED.size());
 	uint32_t hold;
-	std::vector<uint32_t> volumest(IMG.size());
 	// create volumest list
-	for(uint32_t i = 0; i < IMG.size(); i++) {
+	for(uint32_t i = 0; i < UNORDERED.size(); i++) {
 		volumest[i] = i;
 	}
 	// reorder volumest
-	for(uint32_t i = 1; i < IMG.size(); i++) {
-		if(IMG[volumest[i - 1]].Pixels.size() <
-		   IMG[volumest[i]].Pixels.size()) {
+	for(uint32_t i = 1; i < UNORDERED.size(); i++) {
+		if(UNORDERED[volumest[i - 1]].Pixels.size() <
+		   UNORDERED[volumest[i]].Pixels.size()) {
 			// if smaller switch and restart
 			hold = volumest[i];
 			volumest[i] = volumest[i - 1];
@@ -77,26 +77,38 @@ void ReorderByVolume(std::vector<Image>& IMG){
 			i = 0;
 		}
 	}
-	for(uint32_t i = 0; i < IMG.size(); i++) {
-		IMG[i] = UnorderedImages[volumest[i]];
+	std::vector<Image> OrderedImages;
+	for(uint32_t i = 0; i < UNORDERED.size(); i++) {
+		OrderedImages.push_back(UNORDERED[volumest[i]]);
 	}
+	return OrderedImages;
 }
 
-Image MergeImages(std::vector<Image> SUBIMAGE) {
+Image MergeImages(std::vector<Image> SUBIMAGES) {
 	// clang-format off
 	// ---------------------SET_SIZE------------------------------------//
-	//ReorderByVolume(IMG);
-	std::vector<Resolution> ImageResolutions(SUBIMAGE.size());
-	uint32_t RequiredVolume = 0;
+	std::vector<Image> OrderedSubImages;
+	OrderedSubImages = ReorderByVolume(SUBIMAGES);
+	std::vector<Resolution> ImageResolutions(SUBIMAGES.size());
 	// get total required volume
-	for(uint32_t i = 0; i < SUBIMAGE.size(); i++) {
-		ImageResolutions[i] = SUBIMAGE[i].Size;
-		RequiredVolume += (SUBIMAGE[i].Size.Width*SUBIMAGE[i].Size.Height);
+
+	Resolution ExpectedSize = 	{0,0};
+	Resolution MaxSize = 		{0,0};
+	for(uint32_t i = 0; i < SUBIMAGES.size(); i++) {
+		ImageResolutions[i] = OrderedSubImages[i].Size;
+		MaxSize.Width  += OrderedSubImages[i].Size.Width;
+		MaxSize.Height += OrderedSubImages[i].Size.Height;
 	}
 	// get base total size for new image
-	Resolution ExpectedSize = SUBIMAGE[0].Size;
-	while (ExpectedSize.Width*ExpectedSize.Height < RequiredVolume){
-		ExpectedSize.Width++;ExpectedSize.Height++;
+	for (uint32_t i = 0;i<SUBIMAGES.size();i++){
+		// width
+		ExpectedSize.Width += OrderedSubImages[i].Size.Width;
+		if (ExpectedSize.Width>(MaxSize.Width - ExpectedSize.Width)){break;}
+	}
+	for (uint32_t i = 0;i<SUBIMAGES.size();i++){
+		// height
+		ExpectedSize.Height += OrderedSubImages[i].Size.Height;
+		if (ExpectedSize.Height>(MaxSize.Height - ExpectedSize.Height)){break;}		
 	}
 	
 	Image MainImage;
@@ -118,17 +130,17 @@ Image MergeImages(std::vector<Image> SUBIMAGE) {
 	uint32_t CurrentShape = 0;
 	uint32_t CurrentGlyph = 0;
 	// place shapes
-	for(CurrentShape = 0; CurrentShape < SUBIMAGE.size(); CurrentShape++) {
+	for(CurrentShape = 0; CurrentShape < SUBIMAGES.size(); CurrentShape++) {
 		DrawDone = false;
-		CheckLimitY = (MainImage.Size.Height-(SUBIMAGE[CurrentShape].Size.Height-1));
-		CheckLimitX = (MainImage.Size.Width -(SUBIMAGE[CurrentShape].Size.Width -1));
+		CheckLimitY = (MainImage.Size.Height-(OrderedSubImages[CurrentShape].Size.Height-1));
+		CheckLimitX = (MainImage.Size.Width -(OrderedSubImages[CurrentShape].Size.Width -1));
 		for(MYPos = 0; MYPos < CheckLimitY; MYPos++) {
 		for(MXPos = 0; MXPos < CheckLimitX; MXPos++) {
 			if (OccupiedPositions[GetCoordinate(MXPos, MYPos, MainImage.Size.Width)] == false) {
 				DrawSafe = true;
 				// check if position collides with previously written positions
-				for(SYPos=0;SYPos<SUBIMAGE[CurrentShape].Size.Height;SYPos++){
-				for(SXPos=0;SXPos<SUBIMAGE[CurrentShape].Size.Width ;SXPos++){
+				for(SYPos=0;SYPos<OrderedSubImages[CurrentShape].Size.Height;SYPos++){
+				for(SXPos=0;SXPos<OrderedSubImages[CurrentShape].Size.Width ;SXPos++){
 					if(OccupiedPositions[GetCoordinate(MXPos + SXPos,MYPos + SYPos,MainImage.Size.Width)] == true){
 						DrawSafe = false;
 						goto AlreadyWrittenBreakout;
@@ -137,17 +149,17 @@ Image MergeImages(std::vector<Image> SUBIMAGE) {
 				AlreadyWrittenBreakout:;
 				if (DrawSafe){
 					// draw
-					for(SYPos=0;SYPos<SUBIMAGE[CurrentShape].Size.Height;SYPos++){
-					for(SXPos=0;SXPos<SUBIMAGE[CurrentShape].Size.Width ;SXPos++){
+					for(SYPos=0;SYPos<OrderedSubImages[CurrentShape].Size.Height;SYPos++){
+					for(SXPos=0;SXPos<OrderedSubImages[CurrentShape].Size.Width ;SXPos++){
 						MPoint = GetCoordinate(MXPos + SXPos,MYPos + SYPos,MainImage.Size.Width);
-						SPoint = GetCoordinate(SXPos, SYPos, SUBIMAGE[CurrentShape].Size.Width);
-						MainImage.Pixels[MPoint] = SUBIMAGE[CurrentShape].Pixels[SPoint];
+						SPoint = GetCoordinate(SXPos, SYPos, OrderedSubImages[CurrentShape].Size.Width);
+						MainImage.Pixels[MPoint] = OrderedSubImages[CurrentShape].Pixels[SPoint];
 						OccupiedPositions[MPoint] = true;
 					}}
 					// place glyphs
 					Glyph GlyphHold;
-					for(CurrentGlyph = 0; CurrentShape < SUBIMAGE[CurrentShape].Glyphs.size();CurrentGlyph++){
-						GlyphHold = SUBIMAGE[CurrentShape].Glyphs[CurrentGlyph];
+					for(CurrentGlyph = 0; CurrentShape <OrderedSubImages[CurrentShape].Glyphs.size();CurrentGlyph++){
+						GlyphHold = OrderedSubImages[CurrentShape].Glyphs[CurrentGlyph];
 						GlyphHold.Position.Width  += MXPos;
 						GlyphHold.Position.Height += MYPos;
 						MainImage.Glyphs.push_back(GlyphHold);
@@ -478,6 +490,7 @@ Image Read_imgpac(std::string NAM) {
 			   NAM.c_str());
 		exit(1);
 	}
+	char t_CharHold[64];
 	while(t_ite < t_ret.Glyphs.size()) {
 		for(uint32_t i = 0; i < glyphsize; i++) {
 			r_glyphchar[i] = t_hol[t_curpos];
@@ -485,8 +498,10 @@ Image Read_imgpac(std::string NAM) {
 		}
 		// build glyph name
 		for(uint32_t i = 0; i < 64; i++) {
-			r_glyph.Name[i] = r_glyphchar[i];
+			//r_glyph.Name[i] = r_glyphchar[i];
+			t_CharHold[i] = r_glyphchar[i];
 		}
+		r_glyph.Name = t_CharHold;
 		// build glyph size
 		for(uint32_t i = 0; i < 8; i++) {
 			r_widhig[i] = r_glyphchar[i + 64];
