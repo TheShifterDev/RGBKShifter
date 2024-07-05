@@ -31,7 +31,6 @@ struct Image {
 };
 #define GETCORD(X, Y, XMAX) (X + (Y * XMAX))
 
-bool TestPacking(Resolution MASTERSIZE,std::vector<Resolution> SLAVESIZE,std::vector<uint32_t>& MAP);
 float GetRGBColourDistance(Colour A, Colour B);
 void PalletiseImage(Image &IMG, std::vector<Colour> PAL);
 Image MergeImages(std::vector<Image> IMG);
@@ -45,50 +44,11 @@ void Write_imgpac(Image IMG, std::string NAM);
 
 #endif // RGBKS_HEAD_INCLUDE_BARRIER
 
-##ifdef RGBKS_IMPLEM
+#ifdef RGBKS_IMPLEM
 #ifndef RGBKS_BODY_INCLUDE_BARRIER
 #define RGBKS_BODY_INCLUDE_BARRIER
 
 namespace RGBKS {
-
-bool TestPacking(Resolution MASTERSIZE,std::vector<Resolution> SLAVESIZE,std::vector<uint32_t>& MAP){
-	// BUG: seems to retern false despite being vastly oversized
-	// NOTE: assumes ssiz is ordered by volume
-	MAP.resize(MASTERSIZE.Width*MASTERSIZE.Height);
-	bool AllocatedSpace;
-	for (uint32_t CurrentShape=0;CurrentShape<SLAVESIZE.size();CurrentShape++){
-		AllocatedSpace = false;
-		for (uint32_t MasterH=0;MasterH<MASTERSIZE.Height;MasterH++){
-		for (uint32_t MasterW=0;MasterW<MASTERSIZE.Width ;MasterW++){
-			// check if position starts with empty pixel
-			if(MAP[GETCORD(MasterW,MasterH,MASTERSIZE.Width)] == 0) {
-				// check if out of height or width bounds of master image
-				if((SLAVESIZE[CurrentShape].Height+MasterH)>MASTERSIZE.Height
-				|| (SLAVESIZE[CurrentShape].Width +MasterW)>MASTERSIZE.Width){
-					goto CollidingLocation;
-				}
-				// check if position collides with previously written positions
-				for(uint32_t SlaveH=0;SlaveH<SLAVESIZE[CurrentShape].Height;SlaveH++){
-				for(uint32_t SlaveW=0;SlaveW<SLAVESIZE[CurrentShape].Width ;SlaveW++){
-					if(MAP[GETCORD((MasterW+SlaveW),(MasterH+SlaveH),MASTERSIZE.Width)] != 0){
-						goto CollidingLocation;
-					}
-				}}
-				 // mark position filled
-				for(uint32_t SlaveH=0;SlaveH<SLAVESIZE[CurrentShape].Height;SlaveH++){
-				for(uint32_t SlaveW=0;SlaveW<SLAVESIZE[CurrentShape].Width ;SlaveW++){
-					MAP[GETCORD((MasterW+SlaveW),(MasterH+SlaveH),MASTERSIZE.Width)] = CurrentShape+1;
-				}}
-				AllocatedSpace = true;
-				goto CurrentVolumestDrawn;
-				CollidingLocation:;
-			}
-		}}
-		CurrentVolumestDrawn:;
-		if (AllocatedSpace == false){return false;}// MASTERSIZE cannot contain all SLAVESIZE's
-	}
-	return true; // all SSIZ fit within MSIZ
-}
 
 void ReorderByVolume(std::vector<Image>& IMG){
 	std::vector<Image> UnorderedImages = IMG;
@@ -114,84 +74,81 @@ void ReorderByVolume(std::vector<Image>& IMG){
 	}
 }
 
-Image MergeImages(std::vector<Image> IMG) {
+Image MergeImages(std::vector<Image> SUBIMAGE) {
 	// clang-format off
-	// -------------------GET_RESOLUTION----------------------------//
-	ReorderByVolume(IMG);
-	std::vector<Resolution> ImageResolutions(IMG.size());
+	// ---------------------SET_SIZE------------------------------------//
+	//ReorderByVolume(IMG);
+	std::vector<Resolution> ImageResolutions(SUBIMAGE.size());
 	uint32_t RequiredVolume = 0;
 	// get total required volume
-	for(uint32_t i = 0; i < IMG.size(); i++) {
-		ImageResolutions[i] = IMG[i].Size;
-		RequiredVolume += (IMG[i].Size.Width*IMG[i].Size.Height);
+	for(uint32_t i = 0; i < SUBIMAGE.size(); i++) {
+		ImageResolutions[i] = SUBIMAGE[i].Size;
+		RequiredVolume += (SUBIMAGE[i].Size.Width*SUBIMAGE[i].Size.Height);
 	}
 	// get base total size for new image
-	uint32_t hold = 0;
-	Resolution ExpectedSize = IMG[0].Size;
+	Resolution ExpectedSize = SUBIMAGE[0].Size;
 	while (ExpectedSize.Width*ExpectedSize.Height < RequiredVolume){
 		ExpectedSize.Width++;ExpectedSize.Height++;
 	}
-	Resolution MaxLogicalSize = {
-		(uint32_t)(IMG[0].Size.Width*(IMG.size()+1)),
-		(uint32_t)(IMG[0].Size.Height*(IMG.size()+1))
-	};
-	std::vector<uint32_t> DrawMap;
-	while (TestPacking(ExpectedSize,ImageResolutions,DrawMap) == false) {
-		if(hold%2)	{ExpectedSize.Height++;}
-		else		{ExpectedSize.Width++;}
-		if (ExpectedSize.Width > MaxLogicalSize.Width
-		&& ExpectedSize.Height > MaxLogicalSize.Height){
-			//exit(4);
-			break;
-		}
-		hold++;
-	}
-	// ---------------------------TRIMMING--------------------------------//
-	/*
-	Resolution OldExpectedSize = ExpectedSize;
-	while (ExpectedSize.Width > 0) {
-	for(uint32_t i = 0; i < OldExpectedSize.Width; i++) {
-			if(DrawMap[GETCORD(ExpectedSize.Width - 1, i, OldExpectedSize.Width)] != 0) {goto UsedWidthFound;}
-	}ExpectedSize.Width--;}
-	UsedWidthFound:;
-	while (ExpectedSize.Height > 0) {
-	for (uint32_t i = 0; i < OldExpectedSize.Height; i++) {
-		if(DrawMap[GETCORD(i, ExpectedSize.Height - 1, OldExpectedSize.Height)] != 0) {goto UsedHeightFound;}
-	}ExpectedSize.Height--;}
-	UsedHeightFound:;
-
-	// copy old drawmap into new drawmap
-	std::vector<uint32_t> OldDrawMap = DrawMap;
-	DrawMap.resize(ExpectedSize.Width * ExpectedSize.Height);
-	for (uint32_t h = 0;h<ExpectedSize.Height;h++) {
-	for (uint32_t w = 0;w<ExpectedSize.Width;w++) {
-		DrawMap[GETCORD(w,h,ExpectedSize.Width)] = OldDrawMap[GETCORD(w,h,OldExpectedSize.Width)];		
-	}}
-	*/
-	// ---------------------SET_SIZE------------------------------------//
-	Image ret;
-	ret.Size = ExpectedSize;
-	ret.Pixels.resize(DrawMap.size());
+	
+	Image MainImage;
+	MainImage.Size = ExpectedSize;
+	uint32_t hold = ExpectedSize.Width*ExpectedSize.Height;
+	MainImage.Pixels.resize(hold);
+	std::vector<bool> OccupiedPositions(hold);
 	// ---------------------------DRAWING--------------------------------//
+	bool DrawSafe;
+	bool DrawDone;
 	uint32_t maspoint;
 	uint32_t subpoint;
-	for(uint32_t CurrentShape = 0; CurrentShape < IMG.size(); CurrentShape++) {
-		for(uint32_t mh = 0; mh < ret.Size.Height; mh++) {
-		for(uint32_t mw = 0; mw < ret.Size.Width; mw++) {
-			if ((DrawMap[GETCORD(mw, mh, ret.Size.Width)]-1) == CurrentShape) {// find owned location
-				// draw
-				for(uint32_t sh = 0; sh < IMG[CurrentShape].Size.Height;sh++) {
-				for(uint32_t sw = 0; sw < IMG[CurrentShape].Size.Width ;sw++) {
-					maspoint = GETCORD(mw + sw, mh + sh,ret.Size.Width);
-					subpoint = GETCORD(sw, sh, IMG[CurrentShape].Size.Width);
-					ret.Pixels[maspoint] = IMG[CurrentShape].Pixels[subpoint];
+	uint32_t CheckLimitX;
+	uint32_t CheckLimitY;
+	// place shapes
+	for(uint32_t CurrentShape = 0; CurrentShape < SUBIMAGE.size(); CurrentShape++) {
+		DrawDone = false;
+		CheckLimitY = (MainImage.Size.Height-(SUBIMAGE[CurrentShape].Size.Height-1));
+		CheckLimitX = (MainImage.Size.Width -(SUBIMAGE[CurrentShape].Size.Width -1));
+		for(uint32_t MainYPos = 0; MainYPos < CheckLimitY; MainYPos++) {
+		for(uint32_t MainXPos = 0; MainXPos < CheckLimitX; MainXPos++) {
+			if (OccupiedPositions[GETCORD(MainXPos, MainYPos, MainImage.Size.Width)] == false) {
+				DrawSafe = true;
+				// check if position collides with previously written positions
+				for(uint32_t SubYPos=0;SubYPos<SUBIMAGE[CurrentShape].Size.Height;SubYPos++){
+				for(uint32_t SubXPos=0;SubXPos<SUBIMAGE[CurrentShape].Size.Width ;SubXPos++){
+					if(OccupiedPositions[GETCORD((MainXPos+SubXPos),(MainYPos+SubYPos),MainImage.Size.Width)] == true){
+						DrawSafe = false;
+						goto AlreadyWrittenBreakout;
+					}
 				}}
-				goto DrawDone;
-			}
+				AlreadyWrittenBreakout:;
+				if (DrawSafe){
+					// draw
+					for(uint32_t SubYPos=0;SubYPos<SUBIMAGE[CurrentShape].Size.Height;SubYPos++){
+					for(uint32_t SubXPos=0;SubXPos<SUBIMAGE[CurrentShape].Size.Width ;SubXPos++){
+						maspoint = GETCORD(MainXPos + SubXPos, MainYPos + SubYPos,MainImage.Size.Width);
+						subpoint = GETCORD(SubXPos, SubYPos, SUBIMAGE[CurrentShape].Size.Width);
+						MainImage.Pixels[maspoint] = SUBIMAGE[CurrentShape].Pixels[subpoint];
+						OccupiedPositions[maspoint] = true;
+					}}
+					// place glyphs
+					Glyph GlyphHold;
+					for(uint32_t sg = 0; sg < SUBIMAGE[CurrentShape].Glyphs.size();sg++){
+						GlyphHold = SUBIMAGE[CurrentShape].Glyphs[sg];
+						GlyphHold.Position.Width  += MainXPos;
+						GlyphHold.Position.Height += MainYPos;
+						MainImage.Glyphs.push_back(GlyphHold);
+					}
+					DrawDone = true;
+					goto DrawDoneBreakout;
+				}
+			}// end of occupied position[offsetw,offseth] check
 		}}
-		DrawDone:;
+		DrawDoneBreakout:;
+		if(DrawDone == false){
+			exit(5);
+		}
 	}
-	return ret;
+	return MainImage;
 	// clang-format on
 }
 
