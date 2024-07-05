@@ -57,6 +57,26 @@
 			"args": [
 				"-o",
 				"./Examples/Output",
+				"-p",
+				"./Examples/Pallets/japanese-woodblock.png",
+				"-a",
+				"-n",
+				"TestPalletAtlas",
+				"./Examples/Textures/ExampleA.png",
+				"./Examples/Textures/ExampleB.png",
+				"./Examples/Textures/ExampleC.png",
+				"./Examples/Textures/ExampleD.png"
+			],
+			"cwd": "/home/matthew/Documents/Projects/CPP/rgbkShifter",
+			"program": "${workspaceFolder}/Built/rgbkshifter.bin"
+		},
+		{
+			"name": "Paletised Atlas",
+			"type": "lldb",
+			"request": "launch",
+			"args": [
+				"-o",
+				"./Examples/Output",
 				"-a",
 				"-n",
 				"TestAtlas",

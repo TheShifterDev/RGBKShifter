@@ -29,8 +29,14 @@ struct Image {
 	std::vector<Colour> Pixels{};
 	std::vector<Glyph> Glyphs{};
 };
-#define GETCORD(X, Y, XMAX) (X + (Y * XMAX))
 
+// NOTE: NEVER USE MACROS LIKE 
+// >>> #define GETCORD(X, Y, XMAX) (X + (Y * XMAX)) <<<
+// AS NOT INCLUDING '('&')' IN
+// "GETCORD((MainXPos + SubXPos), (MainYPos + SubYPos),MainImage.Size.Width)"
+// CAUSED A BUG THAT TOOK DAYS TO TRACK
+
+uint32_t GetCoordinate(uint32_t XPOS,uint32_t YPOS,uint32_t MAXX);
 float GetRGBColourDistance(Colour A, Colour B);
 void PalletiseImage(Image &IMG, std::vector<Colour> PAL);
 Image MergeImages(std::vector<Image> IMG);
@@ -49,7 +55,9 @@ void Write_imgpac(Image IMG, std::string NAM);
 #define RGBKS_BODY_INCLUDE_BARRIER
 
 namespace RGBKS {
-
+inline uint32_t GetCoordinate(uint32_t XPOS,uint32_t YPOS,uint32_t MAXX){
+	return (XPOS + (YPOS * MAXX));
+}
 void ReorderByVolume(std::vector<Image>& IMG){
 	std::vector<Image> UnorderedImages = IMG;
 	uint32_t hold;
@@ -110,12 +118,12 @@ Image MergeImages(std::vector<Image> SUBIMAGE) {
 		CheckLimitX = (MainImage.Size.Width -(SUBIMAGE[CurrentShape].Size.Width -1));
 		for(uint32_t MainYPos = 0; MainYPos < CheckLimitY; MainYPos++) {
 		for(uint32_t MainXPos = 0; MainXPos < CheckLimitX; MainXPos++) {
-			if (OccupiedPositions[GETCORD(MainXPos, MainYPos, MainImage.Size.Width)] == false) {
+			if (OccupiedPositions[GetCoordinate(MainXPos, MainYPos, MainImage.Size.Width)] == false) {
 				DrawSafe = true;
 				// check if position collides with previously written positions
 				for(uint32_t SubYPos=0;SubYPos<SUBIMAGE[CurrentShape].Size.Height;SubYPos++){
 				for(uint32_t SubXPos=0;SubXPos<SUBIMAGE[CurrentShape].Size.Width ;SubXPos++){
-					if(OccupiedPositions[GETCORD((MainXPos+SubXPos),(MainYPos+SubYPos),MainImage.Size.Width)] == true){
+					if(OccupiedPositions[GetCoordinate(MainXPos + SubXPos,MainYPos + SubYPos,MainImage.Size.Width)] == true){
 						DrawSafe = false;
 						goto AlreadyWrittenBreakout;
 					}
@@ -125,8 +133,8 @@ Image MergeImages(std::vector<Image> SUBIMAGE) {
 					// draw
 					for(uint32_t SubYPos=0;SubYPos<SUBIMAGE[CurrentShape].Size.Height;SubYPos++){
 					for(uint32_t SubXPos=0;SubXPos<SUBIMAGE[CurrentShape].Size.Width ;SubXPos++){
-						maspoint = GETCORD(MainXPos + SubXPos, MainYPos + SubYPos,MainImage.Size.Width);
-						subpoint = GETCORD(SubXPos, SubYPos, SUBIMAGE[CurrentShape].Size.Width);
+						maspoint = GetCoordinate(MainXPos + SubXPos,MainYPos + SubYPos,MainImage.Size.Width);
+						subpoint = GetCoordinate(SubXPos, SubYPos, SUBIMAGE[CurrentShape].Size.Width);
 						MainImage.Pixels[maspoint] = SUBIMAGE[CurrentShape].Pixels[subpoint];
 						OccupiedPositions[maspoint] = true;
 					}}
@@ -241,7 +249,7 @@ Image Read_png(std::string NAM) {
 	t_ret.Pixels.resize(t_ret.Size.Width * t_ret.Size.Height);
 	for(uint32_t h = 0; h < t_ret.Size.Height; h++) {
 		for(uint32_t w = 0; w < t_ret.Size.Width; w++) {
-			t_pos = GETCORD(w, h, t_ret.Size.Width);
+			t_pos = GetCoordinate(w, h, t_ret.Size.Width);
 			t_pix = t_file.get_pixel(w, h);
 			t_ret.Pixels[t_pos].R = t_pix.red;
 			t_ret.Pixels[t_pos].G = t_pix.green;
@@ -258,7 +266,7 @@ void Write_png(Image IMG, std::string NAM) {
 	uint32_t t_pos;
 	for(uint32_t h = 0; h < IMG.Size.Height; h++) {
 		for(uint32_t w = 0; w < IMG.Size.Width; w++) {
-			t_pos = GETCORD(w, h, IMG.Size.Width);
+			t_pos = GetCoordinate(w, h, IMG.Size.Width);
 			t_pix.red = IMG.Pixels[t_pos].R;
 			t_pix.green = IMG.Pixels[t_pos].G;
 			t_pix.blue = IMG.Pixels[t_pos].B;
