@@ -27,7 +27,8 @@
 				"./Examples/Pallets/amber-glow.png",
 				"-n",
 				"Amber-Glow_Paletised_",
-				"./Examples/Textures/ExampleA.png"
+				"./Examples/Textures/ExampleA.png",
+				"./Examples/Textures/ExampleB.png",
 			],
 			"cwd": "/home/matthew/Documents/Projects/CPP/rgbkShifter",
 			"program": "${workspaceFolder}/Built/rgbkshifter.bin"
@@ -43,7 +44,8 @@
 				"./Examples/Pallets/japanese-woodblock.png",
 				"-n",
 				"Japanese-Woodblock_Paletised_",
-				"./Examples/Textures/ExampleA.png"
+				"./Examples/Textures/ExampleC.png",
+				"./Examples/Textures/ExampleD.png",
 			],
 			"cwd": "/home/matthew/Documents/Projects/CPP/rgbkShifter",
 			"program": "${workspaceFolder}/Built/rgbkshifter.bin"
