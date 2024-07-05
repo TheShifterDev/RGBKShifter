@@ -8,10 +8,10 @@ png++ - mand
 ## Notes
 # TODO
 * [ ] change packer to test if a restricted size of image could contain all the subimages and return the size in res
-* [ ] fix bug where creating an atlas always inores the last fed image
-* [x] have atlas gen trim unused vertical space
 * [ ] rename confusing variable names to clearer ones
 * [ ] change code to have a unified style
+* [x] fix bug where creating an atlas always inores the last fed image
+* [x] have atlas gen trim unused vertical space
 * [x] remove glyphcount redundant integer
 * [x] add option to take multiple images and create an atlas with packing data
 * [x] create "unit tests" for features
