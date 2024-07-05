@@ -50,7 +50,7 @@ void Write_imgpac(Image IMG, std::string NAM);
 
 #endif // RGBKS_HEAD_INCLUDE_BARRIER
 
-#ifdef RGBKS_IMPLEM
+##ifdef RGBKS_IMPLEM
 #ifndef RGBKS_BODY_INCLUDE_BARRIER
 #define RGBKS_BODY_INCLUDE_BARRIER
 
@@ -107,23 +107,29 @@ Image MergeImages(std::vector<Image> SUBIMAGE) {
 	// ---------------------------DRAWING--------------------------------//
 	bool DrawSafe;
 	bool DrawDone;
-	uint32_t maspoint;
-	uint32_t subpoint;
+	uint32_t MPoint;
+	uint32_t SPoint;
 	uint32_t CheckLimitX;
 	uint32_t CheckLimitY;
+	uint32_t MYPos = 0;
+	uint32_t MXPos = 0;
+	uint32_t SYPos = 0;
+	uint32_t SXPos = 0;
+	uint32_t CurrentShape = 0;
+	uint32_t CurrentGlyph = 0;
 	// place shapes
-	for(uint32_t CurrentShape = 0; CurrentShape < SUBIMAGE.size(); CurrentShape++) {
+	for(CurrentShape = 0; CurrentShape < SUBIMAGE.size(); CurrentShape++) {
 		DrawDone = false;
 		CheckLimitY = (MainImage.Size.Height-(SUBIMAGE[CurrentShape].Size.Height-1));
 		CheckLimitX = (MainImage.Size.Width -(SUBIMAGE[CurrentShape].Size.Width -1));
-		for(uint32_t MainYPos = 0; MainYPos < CheckLimitY; MainYPos++) {
-		for(uint32_t MainXPos = 0; MainXPos < CheckLimitX; MainXPos++) {
-			if (OccupiedPositions[GetCoordinate(MainXPos, MainYPos, MainImage.Size.Width)] == false) {
+		for(MYPos = 0; MYPos < CheckLimitY; MYPos++) {
+		for(MXPos = 0; MXPos < CheckLimitX; MXPos++) {
+			if (OccupiedPositions[GetCoordinate(MXPos, MYPos, MainImage.Size.Width)] == false) {
 				DrawSafe = true;
 				// check if position collides with previously written positions
-				for(uint32_t SubYPos=0;SubYPos<SUBIMAGE[CurrentShape].Size.Height;SubYPos++){
-				for(uint32_t SubXPos=0;SubXPos<SUBIMAGE[CurrentShape].Size.Width ;SubXPos++){
-					if(OccupiedPositions[GetCoordinate(MainXPos + SubXPos,MainYPos + SubYPos,MainImage.Size.Width)] == true){
+				for(SYPos=0;SYPos<SUBIMAGE[CurrentShape].Size.Height;SYPos++){
+				for(SXPos=0;SXPos<SUBIMAGE[CurrentShape].Size.Width ;SXPos++){
+					if(OccupiedPositions[GetCoordinate(MXPos + SXPos,MYPos + SYPos,MainImage.Size.Width)] == true){
 						DrawSafe = false;
 						goto AlreadyWrittenBreakout;
 					}
@@ -131,19 +137,19 @@ Image MergeImages(std::vector<Image> SUBIMAGE) {
 				AlreadyWrittenBreakout:;
 				if (DrawSafe){
 					// draw
-					for(uint32_t SubYPos=0;SubYPos<SUBIMAGE[CurrentShape].Size.Height;SubYPos++){
-					for(uint32_t SubXPos=0;SubXPos<SUBIMAGE[CurrentShape].Size.Width ;SubXPos++){
-						maspoint = GetCoordinate(MainXPos + SubXPos,MainYPos + SubYPos,MainImage.Size.Width);
-						subpoint = GetCoordinate(SubXPos, SubYPos, SUBIMAGE[CurrentShape].Size.Width);
-						MainImage.Pixels[maspoint] = SUBIMAGE[CurrentShape].Pixels[subpoint];
-						OccupiedPositions[maspoint] = true;
+					for(SYPos=0;SYPos<SUBIMAGE[CurrentShape].Size.Height;SYPos++){
+					for(SXPos=0;SXPos<SUBIMAGE[CurrentShape].Size.Width ;SXPos++){
+						MPoint = GetCoordinate(MXPos + SXPos,MYPos + SYPos,MainImage.Size.Width);
+						SPoint = GetCoordinate(SXPos, SYPos, SUBIMAGE[CurrentShape].Size.Width);
+						MainImage.Pixels[MPoint] = SUBIMAGE[CurrentShape].Pixels[SPoint];
+						OccupiedPositions[MPoint] = true;
 					}}
 					// place glyphs
 					Glyph GlyphHold;
-					for(uint32_t sg = 0; sg < SUBIMAGE[CurrentShape].Glyphs.size();sg++){
-						GlyphHold = SUBIMAGE[CurrentShape].Glyphs[sg];
-						GlyphHold.Position.Width  += MainXPos;
-						GlyphHold.Position.Height += MainYPos;
+					for(CurrentGlyph = 0; CurrentShape < SUBIMAGE[CurrentShape].Glyphs.size();CurrentGlyph++){
+						GlyphHold = SUBIMAGE[CurrentShape].Glyphs[CurrentGlyph];
+						GlyphHold.Position.Width  += MXPos;
+						GlyphHold.Position.Height += MYPos;
 						MainImage.Glyphs.push_back(GlyphHold);
 					}
 					DrawDone = true;
@@ -156,6 +162,45 @@ Image MergeImages(std::vector<Image> SUBIMAGE) {
 			exit(5);
 		}
 	}
+	// ---------------------------TRIM--------------------------------//
+	/*
+	// Trim unused lines or collumns
+	ExpectedSize = MainImage.Size;
+	Resolution UsedSize = ExpectedSize;
+	// get true used Heigth
+	while (UsedSize.Height > 1) {
+		for(uint32_t w = 0;w<ExpectedSize.Width;w++){
+			if (OccupiedPositions[GetCoordinate(w, UsedSize.Height-1, ExpectedSize.Width)]){
+				goto PixelRowOccupiedBreakout;
+			}
+		}
+		UsedSize.Height--;
+	}
+	PixelRowOccupiedBreakout:;
+	while (UsedSize.Width > 1) {
+		for(uint32_t h = 0;h<ExpectedSize.Height;h++){
+			if (OccupiedPositions[GetCoordinate(UsedSize.Width-1 , h, ExpectedSize.Width)]){
+				goto PixelColumnOccupiedBreakout;
+			}
+		}
+		UsedSize.Width--;
+	}
+	PixelColumnOccupiedBreakout:;
+	// check if there are rows or columns to trim
+	if(ExpectedSize.Width  != UsedSize.Width 
+	|| ExpectedSize.Height != UsedSize.Height){
+		Image CopyImage = MainImage;
+		MainImage.Size = ExpectedSize;
+		MainImage.Pixels.resize(ExpectedSize.Width*ExpectedSize.Height);
+		for(MYPos = 0; MYPos < CheckLimitY; MYPos++) {
+		for(MXPos = 0; MXPos < CheckLimitX; MXPos++) {
+			MPoint = GetCoordinate(MXPos,MYPos,MainImage.Size.Width);
+			SPoint = GetCoordinate(MXPos,MYPos,CopyImage.Size.Width);
+			MainImage.Pixels[MPoint] = CopyImage.Pixels[SPoint];
+		}}
+	}
+	*/	
+	//
 	return MainImage;
 	// clang-format on
 }
