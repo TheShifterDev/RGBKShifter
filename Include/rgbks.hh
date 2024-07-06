@@ -102,7 +102,9 @@ Image MergeImages(std::vector<Image> SUBIMAGES) {
 	uint32_t SYPos = 0;
 	uint32_t SXPos = 0;
 	uint32_t CurrentShape = 0;
-	uint32_t CurrentGlyph = 0;
+	uint32_t CurrentGlyphCount = 0;
+	uint32_t TargetGlyphCount = 0;
+	uint32_t CopyGlyphID = 0;
 	// place shapes
 	for(CurrentShape = 0; CurrentShape < OrderedSubImages.size(); CurrentShape++) {
 		DrawDone = false;
@@ -131,12 +133,17 @@ Image MergeImages(std::vector<Image> SUBIMAGES) {
 						OccupiedPositions[MPoint] = true;
 					}}
 					// place glyphs
-					Glyph GlyphHold;
-					for(CurrentGlyph = 0; CurrentShape <OrderedSubImages[CurrentShape].Glyphs.size();CurrentGlyph++){
-						GlyphHold = OrderedSubImages[CurrentShape].Glyphs[CurrentGlyph];
-						GlyphHold.Position.Width  += MXPos;
-						GlyphHold.Position.Height += MYPos;
-						MainImage.Glyphs.push_back(GlyphHold);
+					CurrentGlyphCount = MainImage.Glyphs.size();
+					TargetGlyphCount = CurrentGlyphCount+OrderedSubImages[CurrentShape].Glyphs.size()-1;
+					CopyGlyphID = 0;
+					MainImage.Glyphs.resize(TargetGlyphCount);
+					while(CurrentGlyphCount < TargetGlyphCount){
+						MainImage.Glyphs[CurrentGlyphCount].Name 			= OrderedSubImages[CurrentShape].Glyphs[CopyGlyphID].Name;
+						MainImage.Glyphs[CurrentGlyphCount].Position.Width 	= OrderedSubImages[CurrentShape].Glyphs[CopyGlyphID].Position.Width +MXPos;
+						MainImage.Glyphs[CurrentGlyphCount].Position.Height = OrderedSubImages[CurrentShape].Glyphs[CopyGlyphID].Position.Height+MYPos;
+						MainImage.Glyphs[CurrentGlyphCount].Size 			= OrderedSubImages[CurrentShape].Glyphs[CopyGlyphID].Size;
+						CopyGlyphID++;
+						CurrentGlyphCount++;
 					}
 					DrawDone = true;
 					goto DrawDoneBreakout;
