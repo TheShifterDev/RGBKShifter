@@ -51,38 +51,12 @@ void Write_imgpac(Image IMG, std::string NAM);
 
 #endif // RGBKS_HEAD_INCLUDE_BARRIER
 
-##ifdef RGBKS_IMPLEM
+#ifdef RGBKS_IMPLEM
 #ifndef RGBKS_BODY_INCLUDE_BARRIER
 #define RGBKS_BODY_INCLUDE_BARRIER
 
 namespace RGBKS {
-inline uint32_t GetCoordinate(uint32_t XPOS,uint32_t YPOS,uint32_t MAXX){
-	return (XPOS + (YPOS * MAXX));
-}
-std::vector<Image> ReorderByVolume(std::vector<Image> UNORDERED){
-	std::vector<uint32_t> volumest(UNORDERED.size());
-	uint32_t hold;
-	// create volumest list
-	for(uint32_t i = 0; i < UNORDERED.size(); i++) {
-		volumest[i] = i;
-	}
-	// reorder volumest
-	for(uint32_t i = 1; i < UNORDERED.size(); i++) {
-		if(UNORDERED[volumest[i - 1]].Pixels.size() <
-		   UNORDERED[volumest[i]].Pixels.size()) {
-			// if smaller switch and restart
-			hold = volumest[i];
-			volumest[i] = volumest[i - 1];
-			volumest[i - 1] = hold;
-			i = 0;
-		}
-	}
-	std::vector<Image> OrderedImages;
-	for(uint32_t i = 0; i < UNORDERED.size(); i++) {
-		OrderedImages.push_back(UNORDERED[volumest[i]]);
-	}
-	return OrderedImages;
-}
+
 
 Image MergeImages(std::vector<Image> SUBIMAGES) {
 	// clang-format off
@@ -94,18 +68,18 @@ Image MergeImages(std::vector<Image> SUBIMAGES) {
 
 	Resolution ExpectedSize = 	{0,0};
 	Resolution MaxSize = 		{0,0};
-	for(uint32_t i = 0; i < SUBIMAGES.size(); i++) {
+	for(uint32_t i = 0; i < OrderedSubImages.size(); i++) {
 		ImageResolutions[i] = OrderedSubImages[i].Size;
 		MaxSize.Width  += OrderedSubImages[i].Size.Width;
 		MaxSize.Height += OrderedSubImages[i].Size.Height;
 	}
 	// get base total size for new image
-	for (uint32_t i = 0;i<SUBIMAGES.size();i++){
+	for (uint32_t i = 0;i<OrderedSubImages.size();i++){
 		// width
 		ExpectedSize.Width += OrderedSubImages[i].Size.Width;
 		if (ExpectedSize.Width>(MaxSize.Width - ExpectedSize.Width)){break;}
 	}
-	for (uint32_t i = 0;i<SUBIMAGES.size();i++){
+	for (uint32_t i = 0;i<OrderedSubImages.size();i++){
 		// height
 		ExpectedSize.Height += OrderedSubImages[i].Size.Height;
 		if (ExpectedSize.Height>(MaxSize.Height - ExpectedSize.Height)){break;}		
@@ -130,7 +104,7 @@ Image MergeImages(std::vector<Image> SUBIMAGES) {
 	uint32_t CurrentShape = 0;
 	uint32_t CurrentGlyph = 0;
 	// place shapes
-	for(CurrentShape = 0; CurrentShape < SUBIMAGES.size(); CurrentShape++) {
+	for(CurrentShape = 0; CurrentShape < OrderedSubImages.size(); CurrentShape++) {
 		DrawDone = false;
 		CheckLimitY = (MainImage.Size.Height-(OrderedSubImages[CurrentShape].Size.Height-1));
 		CheckLimitX = (MainImage.Size.Width -(OrderedSubImages[CurrentShape].Size.Width -1));
@@ -225,15 +199,12 @@ float GetRGBColourDistance(Colour A, Colour B) {
 	t_cA[0] = (float)A.R;
 	t_cA[1] = (float)A.G;
 	t_cA[2] = (float)A.B;
-
 	t_cB[0] = (float)B.R;
 	t_cB[1] = (float)B.G;
 	t_cB[2] = (float)B.B;
-
 	t_px = ((t_cA[0] - t_cB[0]) * (t_cA[0] - t_cB[0]));
 	t_py = ((t_cA[1] - t_cB[1]) * (t_cA[1] - t_cB[1]));
 	t_pz = ((t_cA[2] - t_cB[2]) * (t_cA[2] - t_cB[2]));
-
 	t_ret = (t_px + t_py + t_pz) / 2;
 	if(t_ret < 0) {
 		return -t_ret;
@@ -267,143 +238,166 @@ void PalletiseImage(Image &IMG, std::vector<Colour> PAL) {
 	// iterate over every pixel
 	std::vector<float> distances;
 	distances.resize(PAL.size());
-	uint32_t closest = 0;
-	uint32_t t_len = (IMG.Size.Width * IMG.Size.Height);
-	for(uint32_t i = 0; i < t_len; i++) {
+	uint32_t ClosestPalletColour = 0;
+	uint32_t PixelCount = (IMG.Size.Width * IMG.Size.Height);
+	for(uint32_t i = 0; i < PixelCount; i++) {
 		// gets pixels distance to pallet colours (RGB only)
 		for(uint32_t q = 0; q < PAL.size(); q++) {
 			distances[q] = GetRGBColourDistance(PAL[q], IMG.Pixels[i]);
 		}
 		// gets closest pallet colour
-		closest = 0;
+		ClosestPalletColour = 0;
 		for(uint32_t q = 1; q < PAL.size(); q++) {
-			if(distances[q] < distances[closest]) {
-				closest = q;
+			if(distances[q] < distances[ClosestPalletColour]) {
+				ClosestPalletColour = q;
 			}
 		}
 		// make pixel its closest pallet counterpart
-		IMG.Pixels[i].R = PAL[closest].R;
-		IMG.Pixels[i].G = PAL[closest].G;
-		IMG.Pixels[i].B = PAL[closest].B;
+		IMG.Pixels[i].R = PAL[ClosestPalletColour].R;
+		IMG.Pixels[i].G = PAL[ClosestPalletColour].G;
+		IMG.Pixels[i].B = PAL[ClosestPalletColour].B;
 	}
 }
 
 Image Read_png(std::string NAM) {
 	// assumes .png has been trimmed off
 	uint32_t t_pos;
-	Image t_ret;
+	Image ReturnImage;
 	png::rgba_pixel t_pix;
 	png::image<png::rgba_pixel> t_file(NAM + ".png");
 
-	t_ret.Size = {t_file.get_width(), t_file.get_height()};
+	ReturnImage.Size = {t_file.get_width(), t_file.get_height()};
 	// pngs only have 1 glyph
-	t_ret.Glyphs.resize(1);
-	for(uint32_t i = 0; i < NAM.size(); i++) {
-		t_ret.Glyphs[0].Name[i] = NAM[i];
-	}
-	t_ret.Glyphs[0].Size = t_ret.Size;
+	ReturnImage.Glyphs.resize(1);
+	ReturnImage.Glyphs[0].Name = NAM;
+	ReturnImage.Glyphs[0].Size = ReturnImage.Size;
 	// handle pixel array
-	t_ret.Pixels.resize(t_ret.Size.Width * t_ret.Size.Height);
-	for(uint32_t h = 0; h < t_ret.Size.Height; h++) {
-		for(uint32_t w = 0; w < t_ret.Size.Width; w++) {
-			t_pos = GetCoordinate(w, h, t_ret.Size.Width);
+	ReturnImage.Pixels.resize(ReturnImage.Size.Width * ReturnImage.Size.Height);
+	for(uint32_t h = 0; h < ReturnImage.Size.Height; h++) {
+		for(uint32_t w = 0; w < ReturnImage.Size.Width; w++) {
+			t_pos = GetCoordinate(w, h, ReturnImage.Size.Width);
 			t_pix = t_file.get_pixel(w, h);
-			t_ret.Pixels[t_pos].R = t_pix.red;
-			t_ret.Pixels[t_pos].G = t_pix.green;
-			t_ret.Pixels[t_pos].B = t_pix.blue;
-			t_ret.Pixels[t_pos].A = t_pix.alpha;
+			ReturnImage.Pixels[t_pos].R = t_pix.red;
+			ReturnImage.Pixels[t_pos].G = t_pix.green;
+			ReturnImage.Pixels[t_pos].B = t_pix.blue;
+			ReturnImage.Pixels[t_pos].A = t_pix.alpha;
 		}
 	}
-	return t_ret;
+	return ReturnImage;
 }
 void Write_png(Image IMG, std::string NAM) {
-	png::image<png::rgba_pixel> t_file;
-	t_file.resize(IMG.Size.Width, IMG.Size.Height);
-	png::rgba_pixel t_pix;
-	uint32_t t_pos;
+	png::image<png::rgba_pixel> WriteFile;
+	WriteFile.resize(IMG.Size.Width, IMG.Size.Height);
+	png::rgba_pixel HoldPixel;
+	uint32_t CurrentCoordinate;
 	for(uint32_t h = 0; h < IMG.Size.Height; h++) {
-		for(uint32_t w = 0; w < IMG.Size.Width; w++) {
-			t_pos = GetCoordinate(w, h, IMG.Size.Width);
-			t_pix.red = IMG.Pixels[t_pos].R;
-			t_pix.green = IMG.Pixels[t_pos].G;
-			t_pix.blue = IMG.Pixels[t_pos].B;
-			t_pix.alpha = IMG.Pixels[t_pos].A;
-			t_file.set_pixel(w, h, t_pix);
-		}
-	}
-	t_file.write(NAM + ".png");
+	for(uint32_t w = 0; w < IMG.Size.Width; w++) {
+		CurrentCoordinate = GetCoordinate(w, h, IMG.Size.Width);
+		HoldPixel.red	 = IMG.Pixels[CurrentCoordinate].R;
+		HoldPixel.green	 = IMG.Pixels[CurrentCoordinate].G;
+		HoldPixel.blue	 = IMG.Pixels[CurrentCoordinate].B;
+		HoldPixel.alpha	 = IMG.Pixels[CurrentCoordinate].A;
+		WriteFile.set_pixel(w, h, HoldPixel);
+	}}
+	WriteFile.write(NAM + ".png");
 }
 
 void Write_imgpac(Image IMG, std::string NAM) {
 	// evaluate needed size
-	size_t t_size = 0;
-	t_size += sizeof(Resolution);
-	t_size += sizeof(Colour) * (IMG.Size.Width * IMG.Size.Height);
-	t_size += sizeof(uint32_t);
-	t_size += sizeof(Glyph) * IMG.Glyphs.size();
-	uint32_t t_curpos = 0;
-	uint32_t t_tarpos = 0;
+	size_t ExpectedSize = 0;
+	ExpectedSize += sizeof(Resolution);
+	ExpectedSize += sizeof(Colour) * (IMG.Size.Width * IMG.Size.Height);
+	ExpectedSize += sizeof(uint32_t);
+	for (uint32_t i = 0;i<IMG.Glyphs.size();i++){
+		// every string will be written into char[64]
+		ExpectedSize += ((sizeof(char)*64));
+		ExpectedSize += sizeof(Resolution);	
+		ExpectedSize += sizeof(Resolution);
+	}
+
+	uint32_t CurrentPosition = 0;
+	uint32_t TargetPosition = 0;
 	// allocate size
-	std::vector<uint8_t> t_hold;
-	t_hold.resize(t_size / sizeof(uint8_t));
+	std::vector<uint8_t> CharVector;
+	CharVector.resize(ExpectedSize / sizeof(uint8_t));
 	// dump image width and height into hold
-	uint8_t t_res[8];
-	t_res[0] = IMG.Size.Width;
-	t_res[4] = IMG.Size.Height;
-	t_tarpos += 8;
-	while(t_curpos < t_tarpos) {
-		t_hold[t_curpos] = t_res[t_curpos];
-		t_curpos++;
+	uint8_t ImageResolution[8];
+	ImageResolution[0] = IMG.Size.Width;
+	ImageResolution[4] = IMG.Size.Height;
+	TargetPosition += 8;
+	while(CurrentPosition < TargetPosition) {
+		CharVector[CurrentPosition] = ImageResolution[CurrentPosition];
+		CurrentPosition++;
 	}
 	// dump pixels in
-	t_tarpos += (IMG.Pixels.size() * 4);
-	uint32_t t_ite = 0;
-	while(t_curpos < t_tarpos) {
-		t_hold[t_curpos + 0] = IMG.Pixels[t_ite].R;
-		t_hold[t_curpos + 1] = IMG.Pixels[t_ite].G;
-		t_hold[t_curpos + 2] = IMG.Pixels[t_ite].B;
-		t_hold[t_curpos + 3] = IMG.Pixels[t_ite].A;
-		t_ite++;
-		t_curpos += 4;
+	TargetPosition += (IMG.Pixels.size() * 4);
+	uint32_t Iteration = 0;
+	while(CurrentPosition < TargetPosition) {
+		CharVector[CurrentPosition + 0] = IMG.Pixels[Iteration].R;
+		CharVector[CurrentPosition + 1] = IMG.Pixels[Iteration].G;
+		CharVector[CurrentPosition + 2] = IMG.Pixels[Iteration].B;
+		CharVector[CurrentPosition + 3] = IMG.Pixels[Iteration].A;
+		Iteration++;
+		CurrentPosition += 4;
 	}
 	// dump glyphcount into hold
-	t_tarpos += 4;
+	TargetPosition += 4;
 	uint8_t t_cou[4];
-	t_ite = 0;
+	Iteration = 0;
 	t_cou[0] = IMG.Glyphs.size();
-	while(t_curpos < t_tarpos) {
-		t_hold[t_curpos] = t_cou[t_ite];
-		t_ite++;
-		t_curpos++;
+	while(CurrentPosition < TargetPosition) {
+		CharVector[CurrentPosition] = t_cou[Iteration];
+		Iteration++;
+		CurrentPosition++;
 	}
 	// dump glyphs into hold
-	t_ite = 0;
-	while(t_curpos < t_tarpos) {
-		for(uint32_t i = 0; i < 64; i++) {
-			t_hold[t_curpos + i] = IMG.Glyphs[t_ite].Name[i];
-		}
-		t_curpos += 64;
-		// size
-		t_res[0] = IMG.Glyphs[t_ite].Size.Width;
-		t_res[4] = IMG.Glyphs[t_ite].Size.Height;
-		for(uint8_t i = 0; i < 8; i++) {
-			t_hold[t_curpos + i] = t_res[i];
-		}
-		t_curpos += 8;
-		// pos
-		t_res[0] = IMG.Glyphs[t_ite].Position.Width;
-		t_res[4] = IMG.Glyphs[t_ite].Position.Height;
-		for(uint8_t i = 0; i < 8; i++) {
-			t_hold[t_curpos + i] = t_res[i];
-		}
-		t_curpos += 8;
-		t_ite++;
+	Iteration = 0;
+		//
+	// TODO: get total of glyphs and add size to target position
+	for (uint32_t i = 0;i<IMG.Glyphs.size();i++){
+		TargetPosition += 64;// string char's
+		TargetPosition += 8;// glyph size
+		TargetPosition += 8;// glyph res
 	}
+
+	while (Iteration < IMG.Glyphs.size()) {
+		// handle string length
+		uint8_t Target = 0;
+		uint8_t StringLength;
+		if(IMG.Glyphs[Iteration].Name.length()>64){StringLength = 64;}
+		else{StringLength = IMG.Glyphs[Iteration].Name.length();}
+		CharVector[CurrentPosition] = StringLength;
+		// handle string
+		while (Target<StringLength) {
+			CharVector[CurrentPosition + Target] = IMG.Glyphs[Iteration].Name[Target];
+		}
+		while (Target<64) {
+			CharVector[CurrentPosition + Target] = 0;
+		}
+		CurrentPosition += 64;
+		// handle size
+		ImageResolution[0] = IMG.Glyphs[Iteration].Size.Width;
+		ImageResolution[4] = IMG.Glyphs[Iteration].Size.Height;
+		for(uint8_t i = 0; i < 8; i++) {
+			CharVector[CurrentPosition + i] = ImageResolution[i];
+		}
+		CurrentPosition += 8;
+		// handle pos
+		ImageResolution[0] = IMG.Glyphs[Iteration].Position.Width;
+		ImageResolution[4] = IMG.Glyphs[Iteration].Position.Height;
+		for(uint8_t i = 0; i < 8; i++) {
+			CharVector[CurrentPosition + i] = ImageResolution[i];
+		}
+		CurrentPosition += 8;
+		Iteration++;
+	}
+	
+	if (TargetPosition != CurrentPosition){exit(7);}
 	// write char vector to disk
 	// .stimpac = "stoma image package"
-	std::ofstream t_out(NAM + ".stimpac", std::ios::out);
-	t_out << t_hold.data();
-	t_out.close();
+	std::ofstream WriteFile(NAM + ".stimpac", std::ios::out);
+	WriteFile << CharVector.data();
+	WriteFile.close();
 }
 
 Image Read_imgpac(std::string NAM) {
@@ -520,6 +514,33 @@ Image Read_imgpac(std::string NAM) {
 	}
 
 	return t_ret;
+}
+inline uint32_t GetCoordinate(uint32_t XPOS,uint32_t YPOS,uint32_t MAXX){
+	return (XPOS + (YPOS * MAXX));
+}
+std::vector<Image> ReorderByVolume(std::vector<Image> UNORDERED){
+	std::vector<uint32_t> volumest(UNORDERED.size());
+	uint32_t hold;
+	// create volumest list
+	for(uint32_t i = 0; i < UNORDERED.size(); i++) {
+		volumest[i] = i;
+	}
+	// reorder volumest
+	for(uint32_t i = 1; i < UNORDERED.size(); i++) {
+		if(UNORDERED[volumest[i - 1]].Pixels.size() <
+		   UNORDERED[volumest[i]].Pixels.size()) {
+			// if smaller switch and restart
+			hold = volumest[i];
+			volumest[i] = volumest[i - 1];
+			volumest[i - 1] = hold;
+			i = 0;
+		}
+	}
+	std::vector<Image> OrderedImages;
+	for(uint32_t i = 0; i < UNORDERED.size(); i++) {
+		OrderedImages.push_back(UNORDERED[volumest[i]]);
+	}
+	return OrderedImages;
 }
 } // namespace RGBKS
 
