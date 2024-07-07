@@ -159,29 +159,29 @@ Image MergeImages(std::vector<Image> SUBIMAGES) {
 	///*
 	// Trim unused lines or collumns
 	ExpectedSize = MainImage.Size;
-	Resolution UsedSize = ExpectedSize;
-	// get true used Heigth
-	while (UsedSize.Height > 1) {
-		for(uint32_t w = ExpectedSize.Width;w>0;w--){
-			if (OccupiedPositions[GetCoordinate(w, UsedSize.Height-1, ExpectedSize.Width)]){
+	// get true used Heigth/Rows
+	while (ExpectedSize.Height > 1) {
+		for(uint32_t w=0;w<ExpectedSize.Width;w++){
+			if (OccupiedPositions[GetCoordinate(w, ExpectedSize.Height-1, MainImage.Size.Width)]){
 				goto PixelRowOccupiedBreakout;
 			}
 		}
-		UsedSize.Height--;
+		ExpectedSize.Height--;
 	}
 	PixelRowOccupiedBreakout:;
-	while (UsedSize.Width > 1) {
-		for(uint32_t h = ExpectedSize.Height;h>0;h--){
-			if (OccupiedPositions[GetCoordinate(UsedSize.Width-1 , h, ExpectedSize.Width)]){
+	// get true used Width/Columns
+	while (ExpectedSize.Width > 1) {
+		for(uint32_t h=0;h<ExpectedSize.Height;h++){
+			if (OccupiedPositions[GetCoordinate(ExpectedSize.Width-1 , h, MainImage.Size.Width)]){
 				goto PixelColumnOccupiedBreakout;
 			}
 		}
-		UsedSize.Width--;
+		ExpectedSize.Width--;
 	}
 	PixelColumnOccupiedBreakout:;
 	// check if there are rows or columns to trim
-	if(ExpectedSize.Width  != UsedSize.Width 
-	|| ExpectedSize.Height != UsedSize.Height){
+	if(ExpectedSize.Width  != MainImage.Size.Width 
+	|| ExpectedSize.Height != MainImage.Size.Height){
 		Image CopyImage = MainImage;
 		MainImage.Size = ExpectedSize;
 		MainImage.Pixels.resize(ExpectedSize.Width*ExpectedSize.Height);
