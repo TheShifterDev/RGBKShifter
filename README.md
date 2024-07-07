@@ -6,12 +6,15 @@ png++ - mand
 * Paletises images to the colours of an input file "-p/--paletise"
 * Shifts all an images colours to extremes "-s/--shift" 
 * Outputs texture atlas'/sprite sheets "-a/--atlas"
+* Outputs texture glyphs as indevidual images "-c/--cutup"
 * Outputs as a specified format "-f/--format"
 ## Credits 
 "Maber" for the "amber glow" pallet used in testing https://lospec.com/palette-list/amber-glow-5
 "Polyducks" for the "japanese woodblock" pallet used in testing https://lospec.com/palette-list/japanese-woodblock
 ## Notes
 # TODO
-* change packer to test for unused lines and columns and trimm them
+* create tests for cutup
+* create test for outputing stimpac
+* create test to cutup stimpac and output pngs
 * rename confusing variable names to clearer ones
 * change code to have a unified style

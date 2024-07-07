@@ -10,7 +10,8 @@
 enum class CommandEnum {
 	Shift,
 	Atlas,
-	Paletise,
+	Palet,
+	Cutup,
 	Format,
 
 	ENDOF
@@ -50,7 +51,8 @@ std::string HelpText =
 	"Arguments					Description\n"
 	"-s/--shift					= shifts fed images colours to the extremes !!!disables paletise!!!\n"
 	"-p/--paletise <PALETFILE>	= paletises	all input images with the palet file !!!disables shift!!!\n"
-	"-a/--atlas					= packs all fed files into a single output atlas .stimpac file\n"
+	"-a/--atlas					= packs all fed files into a single output file !!!disables cutup!!!\n"
+	"-c/--cutup					= outputs any input file/s glyphs as images !!!disables atlas!!!\n"
 	"-o/--out <DIRECTORY>		= DIRECTORY arg is the location of the writen file/s\n"
 	"-f/--format <FORMAT>		= FORMAT arg is the file type of the output file/s \"png\" or \"stimpac\"\n"
 	"-n/--name <NAME>			= NAME arg is the saved name of the packed file OR the prefix of all shifted files\n"
@@ -90,23 +92,27 @@ int main(int argc, char *argv[]) {
 				// palett to use
 				PaletFile = argv[t_i + 1];
 				CommandList[(uint8_t)CommandEnum::Shift] = false;
-				CommandList[(uint8_t)CommandEnum::Paletise] = true;
+				CommandList[(uint8_t)CommandEnum::Palet] = true;
 				t_i += 2;
 			} else if(hold == "-s" || hold == "--shift") {
 				// shift the values of all input files
-				CommandList[(uint8_t)CommandEnum::Paletise] = false;
+				CommandList[(uint8_t)CommandEnum::Palet] = false;
 				CommandList[(uint8_t)CommandEnum::Shift] = true;
 				t_i++;
 			} else if(hold == "-a" || hold == "--atlas") {
-				// take all input files and output a .stimpac
+				CommandList[(uint8_t)CommandEnum::Cutup] = false;
 				CommandList[(uint8_t)CommandEnum::Atlas] = true;
+				t_i++;
+			} else if(hold == "-c" || hold == "--cutup") {
+				CommandList[(uint8_t)CommandEnum::Cutup] = true;
+				CommandList[(uint8_t)CommandEnum::Atlas] = false;
 				t_i++;
 			} else if(hold == "-f" || hold == "--format") {
 				CommandList[(uint8_t)CommandEnum::Format] = true;
 				std::string TempString = argv[t_i + 1];
+				t_i+=2;
 				if(TempString == "png")		{OutFileType = FileType::PNG;} else
 				if(TempString == "stimpac")	{OutFileType = FileType::STIMPAC;}
-				t_i+=2;
 			} else {
 				// invalid - option
 				t_i++;
@@ -141,9 +147,9 @@ int main(int argc, char *argv[]) {
 
 	// test if shifting or paletising was requested
 	if(CommandList[(uint8_t)CommandEnum::Shift] ||
-	   CommandList[(uint8_t)CommandEnum::Paletise]) {
+	   CommandList[(uint8_t)CommandEnum::Palet]) {
 		// test if paletiseing was requested
-		if(CommandList[(uint8_t)CommandEnum::Paletise]) {
+		if(CommandList[(uint8_t)CommandEnum::Palet]) {
 			SliceOutLastOfChar(PaletFile, '.', name, exten);
 			if(exten == "png") {
 				RGBKS::Image t_image = RGBKS::Read_png(name);
@@ -161,20 +167,16 @@ int main(int argc, char *argv[]) {
 	}
 
 	// test if atlas packing was requested
-	if(CommandList[(uint8_t)CommandEnum::Atlas]) {
+	if(CommandList[(uint8_t)CommandEnum::Atlas]){
 	}
 
 	// write file
 	std::string writedir = "";
 	std::string writenam = "";
-	if(CommandList[(uint8_t)CommandEnum::Atlas]) {
-		// write as .stimpac
-		for(uint32_t i = 0; i < images.size(); i++) {
-			SliceOutLastOfChar(images[i].Glyphs[0].Name, '/', writedir,
-							   writenam);
-			if(OutName != "") {
-				writenam = OutName;
-			}
+	if(CommandList[(uint8_t)CommandEnum::Atlas]) {// output single atlas file
+		if(OutName != "") {
+			SliceOutLastOfChar(images[0].Glyphs[0].Name, '/', writedir,writenam);
+			writenam = OutName;
 		}
 		RGBKS::Image t_outima = RGBKS::MergeImages(images);
 		if (CommandList[(uint8_t)CommandEnum::Format]){
@@ -184,15 +186,25 @@ int main(int argc, char *argv[]) {
 				RGBKS::Write_imgpac(t_outima, OutDir + writenam);
 			}
 		}else{
-			//RGBKS::Write_imgpac(t_outima, OutDir + writenam);
-			RGBKS::Write_png(t_outima, OutDir + writenam);
+			RGBKS::Write_imgpac(t_outima, OutDir + writenam);
 		}
-	} else {
-		// write as .png
+	}else if(CommandList[(uint8_t)CommandEnum::Cutup]){// output every glyph as unique files
+	std::vector<RGBKS::Image> t_glyphs = RGBKS::SeperateGlyphs(images);
+	for (uint32_t i=0;i<t_glyphs.size();i++) {
+	
+	if (CommandList[(uint8_t)CommandEnum::Format]){
+			if (OutFileType == FileType::PNG) {
+				RGBKS::Write_png(t_glyphs[i], OutDir + writenam + t_glyphs[i].Glyphs[0].Name);
+			}else{
+				RGBKS::Write_imgpac(t_glyphs[i], OutDir + writenam + t_glyphs[i].Glyphs[0].Name);
+			}
+		}else{
+			RGBKS::Write_png(t_glyphs[i], OutDir + writenam + t_glyphs[i].Glyphs[0].Name);
+		}
+	}
+	}else{ // output all input files after processing
 		for(uint32_t i = 0; i < images.size(); i++) {
-			// seperate name from dir
-			SliceOutLastOfChar(images[i].Glyphs[0].Name, '/', writedir,
-							   writenam);
+			
 			// write file
 			if (CommandList[(uint8_t)CommandEnum::Format]){
 				if (OutFileType == FileType::PNG) {

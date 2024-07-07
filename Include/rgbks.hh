@@ -35,7 +35,7 @@ struct Image {
 // AS NOT INCLUDING '('&')' IN
 // "GETCORD((MainXPos + SubXPos), (MainYPos + SubYPos),MainImage.Size.Width)"
 // CAUSED A BUG THAT TOOK DAYS TO TRACK
-
+std::vector<Image> SeperateGlyphs(std::vector<Image> IMG);
 std::vector<Image> ReorderByVolume(std::vector<Image> IMG);
 uint32_t GetCoordinate(uint32_t XPOS,uint32_t YPOS,uint32_t MAXX);
 float GetRGBColourDistance(Colour A, Colour B);
@@ -57,6 +57,33 @@ void Write_imgpac(Image IMG, std::string NAM);
 
 namespace RGBKS {
 
+std::vector<Image> SeperateGlyphs(std::vector<Image> IMG){
+	std::vector<Image> OutputImages;
+	Image HoldingImage;
+	for(uint32_t i=0;i<IMG.size();i++){
+	for(uint32_t q=0;q<IMG[i].Glyphs.size();q++){
+		HoldingImage.Size = IMG[i].Glyphs[q].Size;
+		HoldingImage.Glyphs.resize(1);
+		HoldingImage.Glyphs[0].Position = Resolution{0,0}; 
+		HoldingImage.Glyphs[0].Size = IMG[i].Glyphs[q].Size; 
+		HoldingImage.Pixels.resize(IMG[i].Glyphs[q].Size.Width*IMG[i].Glyphs[q].Size.Height);
+		for(uint32_t h=0;h<IMG[i].Glyphs[q].Size.Height;h++){
+		for(uint32_t w=0;w<IMG[i].Glyphs[q].Size.Width;w++){
+			HoldingImage.Pixels[GetCoordinate(
+				w,
+				h,
+				IMG[i].Glyphs[q].Size.Width
+				)] = IMG[i].Pixels[GetCoordinate(
+					IMG[i].Glyphs[q].Position.Width+w,
+					IMG[i].Glyphs[q].Position.Height+h,
+					IMG[i].Size.Width)];
+		}}
+		OutputImages.push_back(HoldingImage);
+	}}
+
+
+	return OutputImages;
+}
 
 Image MergeImages(std::vector<Image> SUBIMAGES) {
 	// clang-format off
