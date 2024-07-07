@@ -11,6 +11,13 @@ enum class CommandEnum {
 	Shift,
 	Atlas,
 	Paletise,
+	Format,
+
+	ENDOF
+};
+enum class FileType{
+	PNG,
+	STIMPAC,
 
 	ENDOF
 };
@@ -20,7 +27,7 @@ void SliceOutLastOfChar(std::string INP, char TARG, std::string &OutStart,
 						std::string &OutEnd);
 
 bool CommandList[(uint8_t)CommandEnum::ENDOF] = {};
-
+FileType OutFileType;
 std::string OutName = "rgbkshifted"; // used in -n/--name
 std::string OutDir = "";			 // used in -o/--out
 std::string PaletFile = "";
@@ -44,7 +51,8 @@ std::string HelpText =
 	"-s/--shift					= shifts fed images colours to the extremes !!!disables paletise!!!\n"
 	"-p/--paletise <PALETFILE>	= paletises	all input images with the palet file !!!disables shift!!!\n"
 	"-a/--atlas					= packs all fed files into a single output atlas .stimpac file\n"
-	"-o/--out <DIRECTORY>		= DIRECTORY arg is the location of the writen files\n"
+	"-o/--out <DIRECTORY>		= DIRECTORY arg is the location of the writen file/s\n"
+	"-f/--format <FORMAT>		= FORMAT arg is the file type of the output file/s \"png\" or \"stimpac\"\n"
 	"-n/--name <NAME>			= NAME arg is the saved name of the packed file OR the prefix of all shifted files\n"
 	"-h/--help					= print this help text\n"
 	"Notes\n"
@@ -93,6 +101,12 @@ int main(int argc, char *argv[]) {
 				// take all input files and output a .stimpac
 				CommandList[(uint8_t)CommandEnum::Atlas] = true;
 				t_i++;
+			} else if(hold == "-f" || hold == "--format") {
+				CommandList[(uint8_t)CommandEnum::Format] = true;
+				std::string TempString = argv[t_i + 1];
+				if(TempString == "png")		{OutFileType = FileType::PNG;} else
+				if(TempString == "stimpac")	{OutFileType = FileType::STIMPAC;}
+				t_i+=2;
 			} else {
 				// invalid - option
 				t_i++;
@@ -106,7 +120,7 @@ int main(int argc, char *argv[]) {
 	// read all images
 	std::string name = "";
 	std::string exten = "";
-	std::string printstring = "";
+	std::string PrintString = "";
 	RGBKS::Image image;
 
 	for(uint32_t i = 0; i < files.size(); i++) {
@@ -119,8 +133,8 @@ int main(int argc, char *argv[]) {
 			image = RGBKS::Read_imgpac(name);
 			images.push_back(image);
 		} else {
-			printstring = files[i] + " has an invalid extension of ." + exten;
-			printf(printstring.c_str());
+			PrintString = files[i] + " has an invalid extension of ." + exten;
+			printf(PrintString.c_str());
 			exit(1);
 		}
 	}
@@ -135,9 +149,9 @@ int main(int argc, char *argv[]) {
 				RGBKS::Image t_image = RGBKS::Read_png(name);
 				PalletColours = RGBKS::ExtractPallet_Image(t_image);
 			} else {
-				printstring =
+				PrintString =
 					PaletFile + " has an invalid extension of ." + exten;
-				printf(printstring.c_str());
+				printf(PrintString.c_str());
 				exit(1);
 			}
 		}
@@ -163,8 +177,16 @@ int main(int argc, char *argv[]) {
 			}
 		}
 		RGBKS::Image t_outima = RGBKS::MergeImages(images);
-		//RGBKS::Write_imgpac(t_outima, OutDir + writenam);
-		RGBKS::Write_png(t_outima, OutDir + writenam);
+		if (CommandList[(uint8_t)CommandEnum::Format]){
+			if (OutFileType == FileType::PNG) {
+				RGBKS::Write_png(t_outima, OutDir + writenam);
+			}else{
+				RGBKS::Write_imgpac(t_outima, OutDir + writenam);
+			}
+		}else{
+			//RGBKS::Write_imgpac(t_outima, OutDir + writenam);
+			RGBKS::Write_png(t_outima, OutDir + writenam);
+		}
 	} else {
 		// write as .png
 		for(uint32_t i = 0; i < images.size(); i++) {
@@ -172,7 +194,15 @@ int main(int argc, char *argv[]) {
 			SliceOutLastOfChar(images[i].Glyphs[0].Name, '/', writedir,
 							   writenam);
 			// write file
-			RGBKS::Write_png(images[i], OutDir + OutName + writenam);
+			if (CommandList[(uint8_t)CommandEnum::Format]){
+				if (OutFileType == FileType::PNG) {
+					RGBKS::Write_png(images[i], OutDir +OutName + writenam);
+				}else{
+					RGBKS::Write_imgpac(images[i], OutDir +OutName + writenam);
+				}
+			}else{
+				RGBKS::Write_png(images[i], OutDir +OutName + writenam);
+			}
 		}
 	}
 

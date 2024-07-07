@@ -77,12 +77,12 @@ Image MergeImages(std::vector<Image> SUBIMAGES) {
 	for (uint32_t i = 0;i<OrderedSubImages.size();i++){
 		// width
 		ExpectedSize.Width += OrderedSubImages[i].Size.Width;
-		if (ExpectedSize.Width>(MaxSize.Width - ExpectedSize.Width)){break;}
+		if (ExpectedSize.Width>=(MaxSize.Width - ExpectedSize.Width)){break;}
 	}
 	for (uint32_t i = 0;i<OrderedSubImages.size();i++){
 		// height
 		ExpectedSize.Height += OrderedSubImages[i].Size.Height;
-		if (ExpectedSize.Height>(MaxSize.Height - ExpectedSize.Height)){break;}		
+		if (ExpectedSize.Height>=(MaxSize.Height - ExpectedSize.Height)){break;}		
 	}
 	
 	Image MainImage;
@@ -156,13 +156,13 @@ Image MergeImages(std::vector<Image> SUBIMAGES) {
 		}
 	}
 	// ---------------------------TRIM--------------------------------//
-	/*
+	///*
 	// Trim unused lines or collumns
 	ExpectedSize = MainImage.Size;
 	Resolution UsedSize = ExpectedSize;
 	// get true used Heigth
 	while (UsedSize.Height > 1) {
-		for(uint32_t w = 0;w<ExpectedSize.Width;w++){
+		for(uint32_t w = ExpectedSize.Width;w>0;w--){
 			if (OccupiedPositions[GetCoordinate(w, UsedSize.Height-1, ExpectedSize.Width)]){
 				goto PixelRowOccupiedBreakout;
 			}
@@ -171,7 +171,7 @@ Image MergeImages(std::vector<Image> SUBIMAGES) {
 	}
 	PixelRowOccupiedBreakout:;
 	while (UsedSize.Width > 1) {
-		for(uint32_t h = 0;h<ExpectedSize.Height;h++){
+		for(uint32_t h = ExpectedSize.Height;h>0;h--){
 			if (OccupiedPositions[GetCoordinate(UsedSize.Width-1 , h, ExpectedSize.Width)]){
 				goto PixelColumnOccupiedBreakout;
 			}
@@ -192,8 +192,7 @@ Image MergeImages(std::vector<Image> SUBIMAGES) {
 			MainImage.Pixels[MPoint] = CopyImage.Pixels[SPoint];
 		}}
 	}
-	*/	
-	//
+	//*/	
 	return MainImage;
 	// clang-format on
 }
