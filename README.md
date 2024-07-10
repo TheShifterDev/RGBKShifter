@@ -16,5 +16,7 @@ png++ - mand
 * create tests for cutup
 * create test for outputing stimpac
 * create test to cutup stimpac and output pngs
-* rename confusing variable names to clearer ones
 * change code to have a unified style
+* look into using gd to support more formats
+* look into creating "sequences" for gifs/animations/variants/bumpmaps
+* create a way to use wildcards '*' in file input

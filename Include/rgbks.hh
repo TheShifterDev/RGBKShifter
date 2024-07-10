@@ -43,9 +43,9 @@ void PalletiseImage(Image &IMG, std::vector<Colour> PAL);
 Image MergeImages(std::vector<Image> IMG);
 std::vector<Colour> ExtractPallet_Image(Image IMG);
 Image Read_png(std::string NAM);
-Image Read_imgpac(std::string NAM);
 void Write_png(Image IMG, std::string NAM);
-void Write_imgpac(Image IMG, std::string NAM);
+Image Read_stimpac(std::string NAM);
+void Write_stimpac(Image IMG, std::string NAM);
 
 } // namespace RGBKS
 
@@ -183,7 +183,6 @@ Image MergeImages(std::vector<Image> SUBIMAGES) {
 		}
 	}
 	// ---------------------------TRIM--------------------------------//
-	///*
 	// Trim unused lines or collumns
 	ExpectedSize = MainImage.Size;
 	// get true used Heigth/Rows
@@ -219,7 +218,6 @@ Image MergeImages(std::vector<Image> SUBIMAGES) {
 			MainImage.Pixels[MPoint] = CopyImage.Pixels[SPoint];
 		}}
 	}
-	//*/	
 	return MainImage;
 	// clang-format on
 }
@@ -334,106 +332,82 @@ void Write_png(Image IMG, std::string NAM) {
 	}}
 	WriteFile.write(NAM + ".png");
 }
-
-void Write_imgpac(Image IMG, std::string NAM) {
-	// evaluate needed size
-	size_t ExpectedSize = 0;
-	ExpectedSize += sizeof(Resolution);
-	ExpectedSize += sizeof(Colour) * (IMG.Size.Width * IMG.Size.Height);
-	ExpectedSize += sizeof(uint32_t);
-	for (uint32_t i = 0;i<IMG.Glyphs.size();i++){
-		// every string will be written into char[64]
-		ExpectedSize += ((sizeof(char)*64));
-		ExpectedSize += sizeof(Resolution);	
-		ExpectedSize += sizeof(Resolution);
-	}
-
-	uint32_t CurrentPosition = 0;
-	uint32_t TargetPosition = 0;
-	// allocate size
+void Write_stimpac(Image IMG, std::string NAM) {
 	std::vector<uint8_t> CharVector;
-	CharVector.resize(ExpectedSize / sizeof(uint8_t));
-	// dump image width and height into hold
 	uint8_t ImageResolution[8];
+	uint8_t GlyphCount[4];
+	/*
+	stimpac spec
+	MasterImage Resolution		| 1
+		Width					| uint32
+		Height					| uint32
+	RGBA Pixel Array			| (MasterImage width * height)
+		Red						| uint8
+		Green					| uint8
+		Blue					| uint8
+		Alpha					| uint8
+	MasterImage GlyphCount		| uint32
+	Glyph Array					| GlyphCount
+		Name					| char*64
+		Size					| 1
+			Width				| uint32
+			Height				| uint32
+		Position				| 1
+			Width				| uint32
+			Height				| uint32
+	*/
+	// ImageResolution
 	ImageResolution[0] = IMG.Size.Width;
 	ImageResolution[4] = IMG.Size.Height;
-	TargetPosition += 8;
-	while(CurrentPosition < TargetPosition) {
-		CharVector[CurrentPosition] = ImageResolution[CurrentPosition];
-		CurrentPosition++;
+	for (uint32_t i=0;i<8;i++){
+		CharVector.push_back(ImageResolution[i]);
 	}
-	// dump pixels in
-	TargetPosition += (IMG.Pixels.size() * 4);
-	uint32_t Iteration = 0;
-	while(CurrentPosition < TargetPosition) {
-		CharVector[CurrentPosition + 0] = IMG.Pixels[Iteration].R;
-		CharVector[CurrentPosition + 1] = IMG.Pixels[Iteration].G;
-		CharVector[CurrentPosition + 2] = IMG.Pixels[Iteration].B;
-		CharVector[CurrentPosition + 3] = IMG.Pixels[Iteration].A;
-		Iteration++;
-		CurrentPosition += 4;
+	// Pixels
+	for(uint32_t i=0;i<IMG.Pixels.size();i++){
+		CharVector.push_back(IMG.Pixels[i].R);
+		CharVector.push_back(IMG.Pixels[i].G);
+		CharVector.push_back(IMG.Pixels[i].B);
+		CharVector.push_back(IMG.Pixels[i].A);
 	}
-	// dump glyphcount into hold
-	TargetPosition += 4;
-	uint8_t t_cou[4];
-	Iteration = 0;
-	t_cou[0] = IMG.Glyphs.size();
-	while(CurrentPosition < TargetPosition) {
-		CharVector[CurrentPosition] = t_cou[Iteration];
-		Iteration++;
-		CurrentPosition++;
+	// Glyph Count
+	GlyphCount[0] = IMG.Glyphs.size();
+	for(uint32_t i=0;i<4;i++){
+		CharVector.push_back(GlyphCount[i]);
 	}
-	// dump glyphs into hold
-	Iteration = 0;
-		//
-	// TODO: get total of glyphs and add size to target position
-	for (uint32_t i = 0;i<IMG.Glyphs.size();i++){
-		TargetPosition += 64;// string char's
-		TargetPosition += 8;// glyph size
-		TargetPosition += 8;// glyph res
-	}
-
-	while (Iteration < IMG.Glyphs.size()) {
-		// handle string length
-		uint8_t Target = 0;
-		uint8_t StringLength;
-		if(IMG.Glyphs[Iteration].Name.length()>64){StringLength = 64;}
-		else{StringLength = IMG.Glyphs[Iteration].Name.length();}
-		CharVector[CurrentPosition] = StringLength;
-		// handle string
-		while (Target<StringLength) {
-			CharVector[CurrentPosition + Target] = IMG.Glyphs[Iteration].Name[Target];
+	// Glyph
+	for(uint32_t q=0;q<IMG.Glyphs.size();q++){
+		// Glyph Name
+		uint32_t UsedChars = 0;
+		if(IMG.Glyphs[q].Name.length()>64){UsedChars = 64;}
+		else{UsedChars = IMG.Glyphs[q].Name.length();}
+		for(uint32_t i=0;i<UsedChars;i++){
+			CharVector.push_back(IMG.Glyphs[q].Name[i]);
 		}
-		while (Target<64) {
-			CharVector[CurrentPosition + Target] = 0;
+		for(uint32_t i=UsedChars;i<64;i++){
+			CharVector.push_back(0);
 		}
-		CurrentPosition += 64;
-		// handle size
-		ImageResolution[0] = IMG.Glyphs[Iteration].Size.Width;
-		ImageResolution[4] = IMG.Glyphs[Iteration].Size.Height;
-		for(uint8_t i = 0; i < 8; i++) {
-			CharVector[CurrentPosition + i] = ImageResolution[i];
+		// Glyph Size
+		ImageResolution[0] = IMG.Glyphs[q].Size.Width;
+		ImageResolution[4] = IMG.Glyphs[q].Size.Height;
+		for (uint32_t i=0;i<8;i++){
+			CharVector.push_back(ImageResolution[i]);
 		}
-		CurrentPosition += 8;
-		// handle pos
-		ImageResolution[0] = IMG.Glyphs[Iteration].Position.Width;
-		ImageResolution[4] = IMG.Glyphs[Iteration].Position.Height;
-		for(uint8_t i = 0; i < 8; i++) {
-			CharVector[CurrentPosition + i] = ImageResolution[i];
+		// Glyph Position
+		ImageResolution[0] = IMG.Glyphs[q].Position.Width;
+		ImageResolution[4] = IMG.Glyphs[q].Position.Height;
+		for (uint32_t i=0;i<8;i++){
+			CharVector.push_back(ImageResolution[i]);
 		}
-		CurrentPosition += 8;
-		Iteration++;
 	}
 	
-	if (TargetPosition != CurrentPosition){exit(7);}
 	// write char vector to disk
-	// .stimpac = "stoma image package"
 	std::ofstream WriteFile(NAM + ".stimpac", std::ios::out);
-	WriteFile << CharVector.data();
+	for(uint32_t i=0;i<CharVector.size();i++){
+		WriteFile << CharVector[i];
+	}
 	WriteFile.close();
 }
-
-Image Read_imgpac(std::string NAM) {
+Image Read_stimpac(std::string NAM) {
 	Image t_ret;
 	std::ifstream t_fil;
 	std::vector<uint8_t> t_hol;
@@ -441,6 +415,26 @@ Image Read_imgpac(std::string NAM) {
 	uint32_t t_curpos = 0;
 	uint32_t t_tarpos = 0;
 	uint32_t t_ite;
+	/*
+	stimpac spec
+	MasterImage Resolution		| 1
+		Width					| uint32
+		Height					| uint32
+	RGBA Pixel Array			| (MasterImage width * height)
+		Red						| uint8
+		Green					| uint8
+		Blue					| uint8
+		Alpha					| uint8
+	MasterImage GlyphCount		| uint32
+	Glyph Array					| GlyphCount
+		Name					| char*64
+		Size					| 1
+			Width				| uint32
+			Height				| uint32
+		Position				| 1
+			Width				| uint32
+			Height				| uint32
+	*/
 	// read file into char vector
 	t_fil.open(NAM + ".stimpac");
 	if(!t_fil.is_open()) {

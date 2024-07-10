@@ -16,13 +16,14 @@ enum class CommandEnum {
 
 	ENDOF
 };
-enum class FileType{
+enum class FileType {
 	PNG,
 	STIMPAC,
 
 	ENDOF
 };
 
+void WriteOut(RGBKS::Image IMG, std::string NAM);
 std::string LowerCaseify(std::string INP);
 void SliceOutLastOfChar(std::string INP, char TARG, std::string &OutStart,
 						std::string &OutEnd);
@@ -63,8 +64,8 @@ std::string HelpText =
 
 int main(int argc, char *argv[]) {
 	// parse args
-	std::vector<std::string> files;
-	std::vector<RGBKS::Image> images;
+	std::vector<std::string> FileList;
+	std::vector<RGBKS::Image> ImageList;
 	std::string hold;
 	int t_i = 1;
 	if(argc == 1) {
@@ -110,38 +111,38 @@ int main(int argc, char *argv[]) {
 			} else if(hold == "-f" || hold == "--format") {
 				CommandList[(uint8_t)CommandEnum::Format] = true;
 				std::string TempString = argv[t_i + 1];
-				t_i+=2;
-				if(TempString == "png")		{OutFileType = FileType::PNG;} else
-				if(TempString == "stimpac")	{OutFileType = FileType::STIMPAC;}
+				t_i += 2;
+				if(TempString == "png") {
+					OutFileType = FileType::PNG;
+				} else if(TempString == "stimpac") {
+					OutFileType = FileType::STIMPAC;
+				}
 			} else {
 				// invalid - option
 				t_i++;
 			}
 		} else { // its a file
-			files.push_back(hold);
+			FileList.push_back(hold);
 			t_i++;
 		}
 	}
 
 	// read all images
-	std::string name = "";
-	std::string exten = "";
-	std::string PrintString = "";
-	RGBKS::Image image;
-
-	for(uint32_t i = 0; i < files.size(); i++) {
-		// seperate filename and file extension
-		SliceOutLastOfChar(files[i], '.', name, exten);
-		if(exten == "png") {
-			image = RGBKS::Read_png(name);
-			images.push_back(image);
-		} else if(exten == "stimpac") {
-			image = RGBKS::Read_imgpac(name);
-			images.push_back(image);
-		} else {
-			PrintString = files[i] + " has an invalid extension of ." + exten;
-			printf(PrintString.c_str());
-			exit(1);
+	{
+		std::string ImageName = "";
+		std::string ImageExtension = "";
+		// std::string PrintString = "";
+		RGBKS::Image TempImage;
+		for(uint32_t i = 0; i < FileList.size(); i++) {
+			// seperate filename and file extension
+			SliceOutLastOfChar(FileList[i], '.', ImageName, ImageExtension);
+			if(ImageExtension == "png") {
+				TempImage = RGBKS::Read_png(ImageName);
+				ImageList.push_back(TempImage);
+			} else if(ImageExtension == "stimpac") {
+				TempImage = RGBKS::Read_stimpac(ImageName);
+				ImageList.push_back(TempImage);
+			}
 		}
 	}
 
@@ -150,75 +151,59 @@ int main(int argc, char *argv[]) {
 	   CommandList[(uint8_t)CommandEnum::Palet]) {
 		// test if paletiseing was requested
 		if(CommandList[(uint8_t)CommandEnum::Palet]) {
-			SliceOutLastOfChar(PaletFile, '.', name, exten);
-			if(exten == "png") {
-				RGBKS::Image t_image = RGBKS::Read_png(name);
-				PalletColours = RGBKS::ExtractPallet_Image(t_image);
-			} else {
-				PrintString =
-					PaletFile + " has an invalid extension of ." + exten;
-				printf(PrintString.c_str());
-				exit(1);
+			std::string PalletName;
+			std::string PalletExtension;
+			RGBKS::Image PalletImage;
+			SliceOutLastOfChar(PaletFile, '.', PalletName, PalletExtension);
+			if(PalletExtension == "png") {
+				PalletImage = RGBKS::Read_png(PalletName);
+				PalletColours = RGBKS::ExtractPallet_Image(PalletImage);
 			}
 		}
-		for(uint32_t i = 0; i < images.size(); i++) {
-			RGBKS::PalletiseImage(images[i], PalletColours);
+		for(uint32_t i = 0; i < ImageList.size(); i++) {
+			RGBKS::PalletiseImage(ImageList[i], PalletColours);
 		}
-	}
-
-	// test if atlas packing was requested
-	if(CommandList[(uint8_t)CommandEnum::Atlas]){
 	}
 
 	// write file
-	std::string writedir = "";
-	std::string writenam = "";
-	if(CommandList[(uint8_t)CommandEnum::Atlas]) {// output single atlas file
-		if(OutName != "") {
-			SliceOutLastOfChar(images[0].Glyphs[0].Name, '/', writedir,writenam);
-			writenam = OutName;
+	if(CommandList[(uint8_t)CommandEnum::Atlas]) {
+		// output single atlas file
+		if(!CommandList[(uint8_t)CommandEnum::Format]) {
+			OutFileType = FileType::STIMPAC;
 		}
-		RGBKS::Image t_outima = RGBKS::MergeImages(images);
-		if (CommandList[(uint8_t)CommandEnum::Format]){
-			if (OutFileType == FileType::PNG) {
-				RGBKS::Write_png(t_outima, OutDir + writenam);
-			}else{
-				RGBKS::Write_imgpac(t_outima, OutDir + writenam);
-			}
-		}else{
-			RGBKS::Write_imgpac(t_outima, OutDir + writenam);
+		RGBKS::Image AtlasImage = RGBKS::MergeImages(ImageList);
+		WriteOut(AtlasImage, OutDir + OutName);
+	} else if(CommandList[(uint8_t)CommandEnum::Cutup]) {
+		// output every glyph as unique files
+		if(!CommandList[(uint8_t)CommandEnum::Format]) {
+			OutFileType = FileType::PNG;
 		}
-	}else if(CommandList[(uint8_t)CommandEnum::Cutup]){// output every glyph as unique files
-	std::vector<RGBKS::Image> t_glyphs = RGBKS::SeperateGlyphs(images);
-	for (uint32_t i=0;i<t_glyphs.size();i++) {
-	
-	if (CommandList[(uint8_t)CommandEnum::Format]){
-			if (OutFileType == FileType::PNG) {
-				RGBKS::Write_png(t_glyphs[i], OutDir + writenam + t_glyphs[i].Glyphs[0].Name);
-			}else{
-				RGBKS::Write_imgpac(t_glyphs[i], OutDir + writenam + t_glyphs[i].Glyphs[0].Name);
-			}
-		}else{
-			RGBKS::Write_png(t_glyphs[i], OutDir + writenam + t_glyphs[i].Glyphs[0].Name);
+		std::vector<RGBKS::Image> GlyphImageList =
+			RGBKS::SeperateGlyphs(ImageList);
+		for(uint32_t i = 0; i < GlyphImageList.size(); i++) {
+			WriteOut(GlyphImageList[i],
+					 OutDir + OutName + GlyphImageList[i].Glyphs[0].Name);
 		}
-	}
-	}else{ // output all input files after processing
-		for(uint32_t i = 0; i < images.size(); i++) {
-			
-			// write file
-			if (CommandList[(uint8_t)CommandEnum::Format]){
-				if (OutFileType == FileType::PNG) {
-					RGBKS::Write_png(images[i], OutDir +OutName + writenam);
-				}else{
-					RGBKS::Write_imgpac(images[i], OutDir +OutName + writenam);
-				}
-			}else{
-				RGBKS::Write_png(images[i], OutDir +OutName + writenam);
-			}
+	} else {
+		// output all input files after processing
+		if(!CommandList[(uint8_t)CommandEnum::Format]) {
+			OutFileType = FileType::PNG;
+		}
+		for(uint32_t i = 0; i < ImageList.size(); i++) {
+			WriteOut(ImageList[i],
+					 OutDir + OutName + ImageList[i].Glyphs[0].Name);
 		}
 	}
 
 	return 0;
+}
+
+void WriteOut(RGBKS::Image IMG, std::string NAM) {
+	if(OutFileType == FileType::PNG) {
+		RGBKS::Write_png(IMG, NAM);
+	} else {
+		RGBKS::Write_stimpac(IMG, NAM);
+	}
 }
 
 void SliceOutLastOfChar(std::string INP, char TARG, std::string &OutStart,

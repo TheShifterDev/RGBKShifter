@@ -59,6 +59,8 @@
 				"./Examples/Output",
 				"-p",
 				"./Examples/Pallets/japanese-woodblock.png",
+				"-f",
+				"png",
 				"-a",
 				"-n",
 				"TestPalletAtlas",
@@ -89,6 +91,22 @@
 			],
 			"cwd": "/home/matthew/Documents/Projects/CPP/rgbkShifter",
 			"program": "${workspaceFolder}/Built/rgbkshifter.bin"
+		},
+		{
+			"name": "Cut up Atlas",
+			"type": "lldb",
+			"request": "launch",
+			"args": [
+				"-o",
+				"./Examples/Output/Cutup/",
+				"-c",
+				"-n",
+				"TestCutup",
+				"./Examples/Output/TestAtlas.stimpac",
+			],
+			"cwd": "/home/matthew/Documents/Projects/CPP/rgbkShifter",
+			"program": "${workspaceFolder}/Built/rgbkshifter.bin"
 		}
+
 	]
 }
