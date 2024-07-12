@@ -2,36 +2,35 @@
 #define RGBKS_HEAD_INCLUDE_BARRIER
 #include <cstdint>
 #include <fstream>
+#include <iostream>
 #include <png++/png.hpp> // local install via pacman
 #include <string>
-#include <iostream>
 #include <vector>
 
 namespace RGBKS {
 
-enum class StimpacVer{
+enum class StimpacVer {
 	V1,
-	/*
-	stimpac spec for V1
-	Version						| uint8
-	MasterImage Resolution		| 1
-		Width					| uint32
-		Height					| uint32
-	RGBA Pixel Array			| (MasterImage width * height)
-		Red						| uint8
-		Green					| uint8
-		Blue					| uint8
-		Alpha					| uint8
-	MasterImage GlyphCount		| uint32
-	Glyph Array					| GlyphCount
-		Name					| char*64
-		Size					| 1
-			Width				| uint32
-			Height				| uint32
-		Position				| 1
-			Width				| uint32
-			Height				| uint32
-	*/
+	//	stimpac spec for V1
+	//	Version						| uint8 	| 1
+	//	MasterImage Resolution		| 1
+	//		Width					| uint32 	| 4
+	//		Height					| uint32 	| 4
+	//	RGBA Pixel Array			| (MasterImage width * height)
+	//		Red						| uint8		| 1
+	//		Green					| uint8		| 1
+	//		Blue					| uint8		| 1
+	//		Alpha					| uint8		| 1
+	//	MasterImage GlyphCount		| uint32	| 4
+	//	Glyph Array					| GlyphCount
+	//		CharCount				| uint32	| 4
+	//		Name					| CharCount
+	//		Size					| 1
+	//			Width				| uint32	| 4
+	//			Height				| uint32	| 4
+	//		Position				| 1
+	//			Width				| uint32	| 4
+	//			Height				| uint32	| 4
 	ENDOF
 };
 
@@ -56,14 +55,14 @@ struct Image {
 	std::vector<Glyph> Glyphs{};
 };
 
-// NOTE: NEVER USE MACROS LIKE 
+// NOTE: NEVER USE MACROS LIKE
 // >>> #define GETCORD(X, Y, XMAX) (X + (Y * XMAX)) <<<
 // AS NOT INCLUDING '('&')' IN
 // "GETCORD((MainXPos + SubXPos), (MainYPos + SubYPos),MainImage.Size.Width)"
 // CAUSED A BUG THAT TOOK DAYS TO TRACK
 std::vector<Image> SeperateGlyphs(std::vector<Image> IMG);
 std::vector<Image> ReorderByVolume(std::vector<Image> IMG);
-uint32_t GetCoordinate(uint32_t XPOS,uint32_t YPOS,uint32_t MAXX);
+uint32_t GetCoordinate(uint32_t XPOS, uint32_t YPOS, uint32_t MAXX);
 float GetRGBColourDistance(Colour A, Colour B);
 void PalletiseImage(Image &IMG, std::vector<Colour> PAL);
 Image MergeImages(std::vector<Image> IMG);
@@ -77,6 +76,7 @@ void Write_stimpac(Image IMG, std::string NAM);
 
 #endif // RGBKS_HEAD_INCLUDE_BARRIER
 
+#define RGBKS_IMPLEM
 #ifdef RGBKS_IMPLEM
 #ifndef RGBKS_BODY_INCLUDE_BARRIER
 #define RGBKS_BODY_INCLUDE_BARRIER
@@ -87,45 +87,58 @@ namespace RGBKS {
 void Write_stimpac(Image IMG, std::string NAM) {
 	std::vector<uint8_t> CharVector;
 	uint32_t GlyphCount;
-	uint8_t* CharVoodoo;
-	// Version
+	uint8_t *CharVoodoo;
+
+	// clang-format off
+//	Version						| uint8 	| 1
 	CharVector.push_back(((uint8_t)StimpacVer::V1));
-	// ImageResolution
+//	MasterImage Resolution		| 1
+//		Width					| uint32 	| 4
+//		Height					| uint32 	| 4
 	CharVoodoo = (uint8_t*)&IMG.Size;
 	for (uint32_t i=0;i<8;i++){
 		CharVector.push_back(CharVoodoo[i]);
 	}
-	// Pixels
+//	RGBA Pixel Array			| (MasterImage width * height)
+//		Red						| uint8		| 1
+//		Green					| uint8		| 1
+//		Blue					| uint8		| 1
+//		Alpha					| uint8		| 1
 	for(uint32_t i=0;i<IMG.Pixels.size();i++){
 		CharVector.push_back(IMG.Pixels[i].R);
 		CharVector.push_back(IMG.Pixels[i].G);
 		CharVector.push_back(IMG.Pixels[i].B);
 		CharVector.push_back(IMG.Pixels[i].A);
 	}
-	// Glyph Count
+//	MasterImage GlyphCount		| uint32	| 4
 	GlyphCount = IMG.Glyphs.size();
 	CharVoodoo = (uint8_t*)&GlyphCount;
 	for(uint32_t i=0;i<4;i++){
 		CharVector.push_back(CharVoodoo[i]);
 	}
-	// Glyph
+	
+//	Glyph Array					| GlyphCount
 	for(uint32_t q=0;q<IMG.Glyphs.size();q++){
-		// Glyph Name
-		uint32_t UsedChars = 0;
-		if(IMG.Glyphs[q].Name.length()>64){UsedChars = 64;}
-		else{UsedChars = IMG.Glyphs[q].Name.length();}
-		for(uint32_t i=0;i<UsedChars;i++){
+//		CharCount				| uint32	| 4
+		uint32_t CharCount = IMG.Glyphs[q].Name.length();
+		CharVoodoo = (uint8_t*)&CharCount;
+		for(uint32_t i=0;i<4;i++){
+			CharVector.push_back(CharVoodoo[i]);
+		}
+//		Name					| CharCount
+		for(uint32_t i=0;i<CharCount;i++){
 			CharVector.push_back(IMG.Glyphs[q].Name[i]);
 		}
-		for(uint32_t i=UsedChars;i<64;i++){
-			CharVector.push_back(0);
-		}
-		// Glyph Size
+//		Size					| 1
+//			Width				| uint32	| 4
+//			Height				| uint32	| 4
 		CharVoodoo = (uint8_t*)&IMG.Glyphs[q].Size;
 		for (uint32_t i=0;i<8;i++){
 			CharVector.push_back(CharVoodoo[i]);
 		}
-		// Glyph Position
+//		Position				| 1
+//			Width				| uint32	| 4
+//			Height				| uint32	| 4
 		CharVoodoo = (uint8_t*)&IMG.Glyphs[q].Size;
 		for (uint32_t i=0;i<8;i++){
 			CharVector.push_back(CharVoodoo[i]);
@@ -138,10 +151,8 @@ void Write_stimpac(Image IMG, std::string NAM) {
 		WriteFile << CharVector[i];
 	}
 	WriteFile.close();
+	// clang-format on
 }
-
-
-
 
 Image Read_stimpac(std::string NAM) {
 	Image OutputImage;
@@ -149,11 +160,14 @@ Image Read_stimpac(std::string NAM) {
 	std::ifstream ReadFile;
 	std::vector<uint8_t> CharVector;
 	char CharArray[64];
-	uint8_t* CharVoodoo;
+	uint8_t *CharVoodoo;
 	char HoldChar;
 	uint32_t CurrentPosition = 0;
 	Colour HoldColour;
 	uint32_t GlyphCount;
+	uint32_t CharCount;
+
+	// clang-format off
 	
 	// read file into char vector
 	ReadFile.open(NAM + ".stimpac");
@@ -166,17 +180,27 @@ Image Read_stimpac(std::string NAM) {
 		CharVector.push_back(HoldChar);
 	}
 	ReadFile.close();
-	// Version
+	CurrentPosition = 0;
+//	Version						| uint8 	| 1
 	CurrentVersion = (StimpacVer)CharVector[0];
+	if(CurrentVersion >= StimpacVer::ENDOF){
+		exit(12); // file is either invalid or 
+	}
 	CurrentPosition+=1;
-	// Resolution
+//	MasterImage Resolution		| 1
+//		Width					| uint32 	| 4
+//		Height					| uint32 	| 4
 	CharVoodoo = (uint8_t*)&OutputImage.Size.Width;
 	for(uint32_t i=0;i<4;i++) {CharVoodoo[i]=CharVector[CurrentPosition+i];}
 	CurrentPosition+=4;
 	CharVoodoo = (uint8_t*)&OutputImage.Size.Height;
 	for(uint32_t i=0;i<4;i++) {CharVoodoo[i]=CharVector[CurrentPosition+i];}
 	CurrentPosition+=4;
-	// Pixels
+//	RGBA Pixel Array			| (MasterImage width * height)
+//		Red						| uint8		| 1
+//		Green					| uint8		| 1
+//		Blue					| uint8		| 1
+//		Alpha					| uint8		| 1
 	OutputImage.Pixels.resize(OutputImage.Size.Width * OutputImage.Size.Height);
 	for(uint32_t i=0;i<OutputImage.Pixels.size();i++) {
 		HoldColour.R=CharVector[CurrentPosition+0+(i*4)];
@@ -186,65 +210,78 @@ Image Read_stimpac(std::string NAM) {
 		OutputImage.Pixels[i] = HoldColour;
 		CurrentPosition+=4;
 	}
-	// Glyph Count
+//	MasterImage GlyphCount		| uint32	| 4
 	CharVoodoo = (uint8_t*)&GlyphCount;
 	for(uint32_t i=0;i<4;i++) {CharVoodoo[i] = CharVector[CurrentPosition+i];}
 	OutputImage.Glyphs.resize(GlyphCount);
 	CurrentPosition+=4;
-	// Glyph
+//	Glyph Array					| GlyphCount
 	for (uint32_t q=0;q<OutputImage.Glyphs.size();q++) {
-		// Name
-		for (uint32_t i=0;i<64;i++) {
+//		CharCount				| uint32	| 4
+		CharVoodoo = (uint8_t*)&CharCount;
+		for(uint32_t i=0;i<4;i++) {CharVoodoo[i] = CharVector[CurrentPosition+i];}
+		OutputImage.Glyphs[q].Name.resize(CharCount);
+//		Name					| CharCount
+	for (uint32_t i=0;i<CharCount;i++) {
 			CharArray[i]=CharVector[CurrentPosition+i];
 		}
 		OutputImage.Glyphs[q].Name = CharArray;
 		CurrentPosition+=64;
-		// Size
+// BUG: glyphs are reading with broken Size and Position
+//		Size					| 1
+//			Width				| uint32	| 4
 		CharVoodoo = (uint8_t*)&OutputImage.Glyphs[q].Size.Width;
 		for(uint32_t i=0;i<4;i++) {CharVoodoo[i]=CharVector[CurrentPosition+i];}
 		CurrentPosition+=4;
+//			Height				| uint32	| 4
 		CharVoodoo = (uint8_t*)&OutputImage.Glyphs[q].Size.Height;
 		for(uint32_t i=0;i<4;i++) {CharVoodoo[i]=CharVector[CurrentPosition+i];}
 		CurrentPosition+=4;
-		// Position
+//		Position				| 1
+//			Width				| uint32	| 4
 		CharVoodoo = (uint8_t*)&OutputImage.Glyphs[q].Position.Width;
 		for(uint32_t i=0;i<4;i++) {CharVoodoo[i]=CharVector[CurrentPosition+i];}
 		CurrentPosition+=4;
+//			Height				| uint32	| 4
 		CharVoodoo = (uint8_t*)&OutputImage.Glyphs[q].Position.Height;
 		for(uint32_t i=0;i<4;i++) {CharVoodoo[i]=CharVector[CurrentPosition+i];}
 		CurrentPosition+=4;
 	}
 	return OutputImage;
+	// clang-format on
 }
 
-
-
-
-
-std::vector<Image> SeperateGlyphs(std::vector<Image> IMG){
+std::vector<Image> SeperateGlyphs(std::vector<Image> IMG) {
 	std::vector<Image> OutputImages;
 	Image HoldingImage;
-	for(uint32_t i=0;i<IMG.size();i++){
-	for(uint32_t q=0;q<IMG[i].Glyphs.size();q++){
-		HoldingImage.Size = IMG[i].Glyphs[q].Size;
-		HoldingImage.Glyphs.resize(1);
-		HoldingImage.Glyphs[0].Position = Resolution{0,0}; 
-		HoldingImage.Glyphs[0].Size = IMG[i].Glyphs[q].Size; 
-		HoldingImage.Pixels.resize(IMG[i].Glyphs[q].Size.Width*IMG[i].Glyphs[q].Size.Height);
-		for(uint32_t h=0;h<IMG[i].Glyphs[q].Size.Height;h++){
-		for(uint32_t w=0;w<IMG[i].Glyphs[q].Size.Width;w++){
-			HoldingImage.Pixels[GetCoordinate(
-				w,
-				h,
-				IMG[i].Glyphs[q].Size.Width
-				)] = IMG[i].Pixels[GetCoordinate(
-					IMG[i].Glyphs[q].Position.Width+w,
-					IMG[i].Glyphs[q].Position.Height+h,
-					IMG[i].Size.Width)];
-		}}
-		OutputImages.push_back(HoldingImage);
-	}}
-
+	Resolution NewRes;
+	Resolution Offset;
+	for(uint32_t i = 0; i < IMG.size(); i++) {
+		if(IMG[i].Glyphs.size() < 2) {
+			if(IMG[i].Glyphs.size() == 0){
+				// IMG[i] is broken
+				exit(8);
+			}
+			// skip as IMG[i] seperation is unnessesary
+			OutputImages.push_back(IMG[i]);
+		} else {
+			for(uint32_t q = 0; q < IMG[i].Glyphs.size(); q++) {
+				NewRes = IMG[i].Glyphs[q].Size;
+				Offset = IMG[i].Glyphs[q].Position;
+				HoldingImage.Size = NewRes;
+				HoldingImage.Glyphs.resize(1);
+				HoldingImage.Glyphs[0].Position = Resolution{0, 0};
+				HoldingImage.Glyphs[0].Size = NewRes;
+				HoldingImage.Pixels.resize(NewRes.Width * NewRes.Height);
+				for(uint32_t h = 0; h < NewRes.Height; h++) {
+				for(uint32_t w = 0; w < NewRes.Width; w++) {
+					HoldingImage.Pixels[GetCoordinate(w, h, NewRes.Width)] =
+						IMG[i].Pixels[GetCoordinate(Offset.Width + w,Offset.Height + h,IMG[i].Size.Width)];
+				}}
+				OutputImages.push_back(HoldingImage);
+			}
+		}
+	}
 
 	return OutputImages;
 }
@@ -476,20 +513,21 @@ void Write_png(Image IMG, std::string NAM) {
 	png::rgba_pixel HoldPixel;
 	uint32_t CurrentCoordinate;
 	for(uint32_t h = 0; h < IMG.Size.Height; h++) {
-	for(uint32_t w = 0; w < IMG.Size.Width; w++) {
-		CurrentCoordinate = GetCoordinate(w, h, IMG.Size.Width);
-		HoldPixel.red	 = IMG.Pixels[CurrentCoordinate].R;
-		HoldPixel.green	 = IMG.Pixels[CurrentCoordinate].G;
-		HoldPixel.blue	 = IMG.Pixels[CurrentCoordinate].B;
-		HoldPixel.alpha	 = IMG.Pixels[CurrentCoordinate].A;
-		WriteFile.set_pixel(w, h, HoldPixel);
-	}}
+		for(uint32_t w = 0; w < IMG.Size.Width; w++) {
+			CurrentCoordinate = GetCoordinate(w, h, IMG.Size.Width);
+			HoldPixel.red = IMG.Pixels[CurrentCoordinate].R;
+			HoldPixel.green = IMG.Pixels[CurrentCoordinate].G;
+			HoldPixel.blue = IMG.Pixels[CurrentCoordinate].B;
+			HoldPixel.alpha = IMG.Pixels[CurrentCoordinate].A;
+			WriteFile.set_pixel(w, h, HoldPixel);
+		}
+	}
 	WriteFile.write(NAM + ".png");
 }
-inline uint32_t GetCoordinate(uint32_t XPOS,uint32_t YPOS,uint32_t MAXX){
+inline uint32_t GetCoordinate(uint32_t XPOS, uint32_t YPOS, uint32_t MAXX) {
 	return (XPOS + (YPOS * MAXX));
 }
-std::vector<Image> ReorderByVolume(std::vector<Image> UNORDERED){
+std::vector<Image> ReorderByVolume(std::vector<Image> UNORDERED) {
 	std::vector<uint32_t> volumest(UNORDERED.size());
 	uint32_t hold;
 	// create volumest list

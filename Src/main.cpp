@@ -173,7 +173,8 @@ int main(int argc, char *argv[]) {
 		}
 		RGBKS::Image AtlasImage = RGBKS::MergeImages(ImageList);
 		WriteOut(AtlasImage, OutDir + OutName);
-	} else if(CommandList[(uint8_t)CommandEnum::Cutup]) {
+	} else
+	if(CommandList[(uint8_t)CommandEnum::Cutup]) {
 		// output every glyph as unique files
 		if(!CommandList[(uint8_t)CommandEnum::Format]) {
 			OutFileType = FileType::PNG;

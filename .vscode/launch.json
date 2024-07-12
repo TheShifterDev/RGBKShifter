@@ -98,7 +98,7 @@
 			"request": "launch",
 			"args": [
 				"-o",
-				"./Examples/Output/Cutup/",
+				"./Examples/Output/Cutup",
 				"-c",
 				"-n",
 				"TestCutup",
