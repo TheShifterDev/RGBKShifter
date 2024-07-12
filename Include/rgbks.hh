@@ -124,7 +124,7 @@ void Write_stimpac(Image IMG, std::string NAM) {
 //	Glyph Array					| GlyphCount
 	for(uint32_t q=0;q<IMG.Glyphs.size();q++){
 //		CharCount				| uint32	| 4
-		uint32_t CharCount = IMG.Glyphs[q].Name.length();
+		uint32_t CharCount = IMG.Glyphs[q].Name.size();
 		CharVoodoo = (uint8_t*)&CharCount;
 		for(uint32_t i=0;i<4;i++){
 			CharVector.push_back(CharVoodoo[i]);
@@ -219,12 +219,13 @@ Image Read_stimpac(std::string NAM) {
 	OutputImage.Glyphs.resize(GlyphCount);
 //	Glyph Array					| GlyphCount
 	for (uint32_t q=0;q<OutputImage.Glyphs.size();q++) {
+		CharCount = 0;
 //		CharCount				| uint32	| 4
 		CharVoodoo = (uint8_t*)&CharCount;
 		for(uint32_t i=0;i<4;i++) {CharVoodoo[i] = CharVector[CurrentPosition];CurrentPosition++;}
 //			Name				| CharCount
 			OutputImage.Glyphs[q].Name.resize(CharCount);
-			for (uint32_t i=0;i<OutputImage.Glyphs[q].Name.length();i++) {
+			for (uint32_t i=0;i<OutputImage.Glyphs[q].Name.size();i++) {
 				OutputImage.Glyphs[q].Name[i]=CharVector[CurrentPosition];CurrentPosition++;
 			}
 // BUG: glyphs are reading with broken Size and Position

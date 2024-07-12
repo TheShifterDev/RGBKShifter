@@ -228,7 +228,7 @@ void SliceOutLastOfChar(std::string INP, char TARG, std::string &OutStart,
 	}
 }
 std::string LowerCaseify(std::string INP) {
-	for(uint32_t i = 0; i < INP.length(); i++) {
+	for(uint32_t i = 0; i < INP.size(); i++) {
 		if(INP[i] > 64 && INP[i] < 91) {
 			INP[i] += 32;
 		}
