@@ -371,24 +371,9 @@ Image MergeImages(std::vector<Image> SUBIMAGES) {
 	// clang-format on
 }
 float GetRGBColourDistance(Colour A, Colour B) {
-	float t_ret;
-	float t_px, t_py, t_pz;
-	float t_cA[3];
-	float t_cB[3];
-	t_cA[0] = (float)A.R;
-	t_cA[1] = (float)A.G;
-	t_cA[2] = (float)A.B;
-	t_cB[0] = (float)B.R;
-	t_cB[1] = (float)B.G;
-	t_cB[2] = (float)B.B;
-	t_px = ((t_cA[0] - t_cB[0]) * (t_cA[0] - t_cB[0]));
-	t_py = ((t_cA[1] - t_cB[1]) * (t_cA[1] - t_cB[1]));
-	t_pz = ((t_cA[2] - t_cB[2]) * (t_cA[2] - t_cB[2]));
-	t_ret = (t_px + t_py + t_pz) / 2;
-	if(t_ret < 0) {
-		return -t_ret;
-	} // shouldnt be needed but whatever
-	return t_ret;
+	return (((((float)A.R - (float)B.R) * ((float)A.R - (float)B.R))+
+			 (((float)A.G - (float)B.G) * ((float)A.G - (float)B.G))+
+			 (((float)A.B - (float)B.B) * ((float)A.B - (float)B.B))) / 2);
 }
 std::vector<Colour> ExtractPallet_Image(Image IMG) {
 	// brute force iterates over fed image
@@ -437,31 +422,28 @@ void PalletiseImage(Image &IMG, std::vector<Colour> PAL) {
 }
 Image Read_png(std::string NAM) {
 	// assumes .png has been trimmed off
-	uint32_t t_pos;
+	uint32_t HoldPosition;
 	Image ReturnImage;
-	png::rgba_pixel t_pix;
+	png::rgba_pixel HoldPixel;
 	std::string SourceDir;
 	std::string GlyphName;
-	png::image<png::rgba_pixel> t_file(NAM + ".png");
-
-	ReturnImage.Size = {t_file.get_width(), t_file.get_height()};
+	png::image<png::rgba_pixel> PngFile(NAM + ".png");
+	ReturnImage.Size = {PngFile.get_width(), PngFile.get_height()};
 	// pngs only have 1 glyph
 	ReturnImage.Glyphs.resize(1);
-
 	SliceOutLastOfChar(NAM, '/',SourceDir,GlyphName);
-
 	ReturnImage.Glyphs[0].Name = GlyphName;
 	ReturnImage.Glyphs[0].Size = ReturnImage.Size;
 	// handle pixel array
 	ReturnImage.Pixels.resize(ReturnImage.Size.Width * ReturnImage.Size.Height);
 	for(uint32_t h = 0; h < ReturnImage.Size.Height; h++) {
 		for(uint32_t w = 0; w < ReturnImage.Size.Width; w++) {
-			t_pos = GetCoordinate(w, h, ReturnImage.Size.Width);
-			t_pix = t_file.get_pixel(w, h);
-			ReturnImage.Pixels[t_pos].R = t_pix.red;
-			ReturnImage.Pixels[t_pos].G = t_pix.green;
-			ReturnImage.Pixels[t_pos].B = t_pix.blue;
-			ReturnImage.Pixels[t_pos].A = t_pix.alpha;
+			HoldPosition = GetCoordinate(w, h, ReturnImage.Size.Width);
+			HoldPixel = PngFile.get_pixel(w, h);
+			ReturnImage.Pixels[HoldPosition].R = HoldPixel.red;
+			ReturnImage.Pixels[HoldPosition].G = HoldPixel.green;
+			ReturnImage.Pixels[HoldPosition].B = HoldPixel.blue;
+			ReturnImage.Pixels[HoldPosition].A = HoldPixel.alpha;
 		}
 	}
 	return ReturnImage;
