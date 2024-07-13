@@ -24,9 +24,7 @@ enum class FileType {
 };
 
 void WriteOut(RGBKS::Image IMG, std::string NAM);
-std::string LowerCaseify(std::string INP);
-void SliceOutLastOfChar(std::string INP, char TARG, std::string &OutStart,
-						std::string &OutEnd);
+
 
 bool CommandList[(uint8_t)CommandEnum::ENDOF] = {};
 FileType OutFileType;
@@ -131,11 +129,11 @@ int main(int argc, char *argv[]) {
 	{
 		std::string ImageName = "";
 		std::string ImageExtension = "";
-		// std::string PrintString = "";
+		std::string ReadLocation = "";
 		RGBKS::Image TempImage;
 		for(uint32_t i = 0; i < FileList.size(); i++) {
-			// seperate filename and file extension
-			SliceOutLastOfChar(FileList[i], '.', ImageName, ImageExtension);
+			// split "./gorbinos/file.png" to "./gorbinos/file" & "png"
+			RGBKS::SliceOutLastOfChar(FileList[i], '.', ImageName, ImageExtension);
 			if(ImageExtension == "png") {
 				TempImage = RGBKS::Read_png(ImageName);
 				ImageList.push_back(TempImage);
@@ -154,7 +152,7 @@ int main(int argc, char *argv[]) {
 			std::string PalletName;
 			std::string PalletExtension;
 			RGBKS::Image PalletImage;
-			SliceOutLastOfChar(PaletFile, '.', PalletName, PalletExtension);
+			RGBKS::SliceOutLastOfChar(PaletFile, '.', PalletName, PalletExtension);
 			if(PalletExtension == "png") {
 				PalletImage = RGBKS::Read_png(PalletName);
 				PalletColours = RGBKS::ExtractPallet_Image(PalletImage);
@@ -205,33 +203,4 @@ void WriteOut(RGBKS::Image IMG, std::string NAM) {
 	} else {
 		RGBKS::Write_stimpac(IMG, NAM);
 	}
-}
-
-void SliceOutLastOfChar(std::string INP, char TARG, std::string &OutStart,
-						std::string &OutEnd) {
-	uint32_t extenpos = 0;
-	std::string holdstr = INP;
-	extenpos = holdstr.size() - 1;
-	while(extenpos > 0) {
-		if(holdstr[extenpos] == TARG) {
-			break;
-		} else {
-			extenpos--;
-		}
-	}
-	if(extenpos == 0) {
-		OutStart = "";
-		OutEnd = holdstr;
-	} else {
-		OutStart = holdstr.substr(0, extenpos);
-		OutEnd = holdstr.substr(extenpos + 1, holdstr.size());
-	}
-}
-std::string LowerCaseify(std::string INP) {
-	for(uint32_t i = 0; i < INP.size(); i++) {
-		if(INP[i] > 64 && INP[i] < 91) {
-			INP[i] += 32;
-		}
-	}
-	return INP;
 }

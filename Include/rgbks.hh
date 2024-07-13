@@ -12,15 +12,15 @@ enum class StimpacVer {
 	V1,
 	//	stimpac spec for V1
 	//	Version						| uint32 	| 4
-	//	MasterImage Resolution		| 1
+	//	Resolution					| 1
 	//		Width					| uint32 	| 4
 	//		Height					| uint32 	| 4
-	//	RGBA Pixel Array			| (MasterImage width * height)
+	//	RGBA Pixel Array			| (Width * Height)
 	//		Red						| uint8		| 1
 	//		Green					| uint8		| 1
 	//		Blue					| uint8		| 1
 	//		Alpha					| uint8		| 1
-	//	MasterImage GlyphCount		| uint32	| 4
+	//	GlyphCount					| uint32	| 4
 	//	Glyph Array					| GlyphCount
 	//		CharCount				| uint32	| 4
 	//			Name				| CharCount
@@ -59,9 +59,10 @@ struct Image {
 // AS NOT INCLUDING '('&')' IN
 // "GETCORD((MainXPos + SubXPos), (MainYPos + SubYPos),MainImage.Size.Width)"
 // CAUSED A BUG THAT TOOK DAYS TO TRACK
+inline uint32_t GetCoordinate(uint32_t XPOS, uint32_t YPOS, uint32_t MAXX);
+
 std::vector<Image> SeperateGlyphs(std::vector<Image> IMG);
 std::vector<Image> ReorderByVolume(std::vector<Image> IMG);
-uint32_t GetCoordinate(uint32_t XPOS, uint32_t YPOS, uint32_t MAXX);
 float GetRGBColourDistance(Colour A, Colour B);
 void PalletiseImage(Image &IMG, std::vector<Colour> PAL);
 Image MergeImages(std::vector<Image> IMG);
@@ -70,12 +71,17 @@ Image Read_png(std::string NAM);
 void Write_png(Image IMG, std::string NAM);
 Image Read_stimpac(std::string NAM);
 void Write_stimpac(Image IMG, std::string NAM);
+void SliceOutLastOfChar(std::string INP,
+						char TARG,
+						std::string &OutStart,
+						std::string &OutEnd);
+std::string LowerCaseify(std::string INP);
 
 } // namespace RGBKS
 
 #endif // RGBKS_HEAD_INCLUDE_BARRIER
 
-//#define RGBKS_IMPLEM
+#define RGBKS_IMPLEM
 #ifdef RGBKS_IMPLEM
 #ifndef RGBKS_BODY_INCLUDE_BARRIER
 #define RGBKS_BODY_INCLUDE_BARRIER
@@ -199,8 +205,9 @@ Image Read_stimpac(std::string NAM) {
 std::vector<Image> SeperateGlyphs(std::vector<Image> IMG) {
 	std::vector<Image> OutputImages;
 	Image HoldingImage;
-	Resolution NewRes;
-	Resolution Offset;
+	Resolution NewSize;
+	Resolution NewOffset;
+	std::string NewName;
 	for(uint32_t i = 0; i < IMG.size(); i++) {
 		if(IMG[i].Glyphs.size() < 2) {
 			if(IMG[i].Glyphs.size() == 0){
@@ -211,17 +218,19 @@ std::vector<Image> SeperateGlyphs(std::vector<Image> IMG) {
 			OutputImages.push_back(IMG[i]);
 		} else {
 			for(uint32_t q = 0; q < IMG[i].Glyphs.size(); q++) {
-				NewRes = IMG[i].Glyphs[q].Size;
-				Offset = IMG[i].Glyphs[q].Offset;
-				HoldingImage.Size = NewRes;
+				NewSize = IMG[i].Glyphs[q].Size;
+				NewOffset = IMG[i].Glyphs[q].Offset;
+				NewName =  IMG[i].Glyphs[q].Name;
+				HoldingImage.Size = NewSize;
 				HoldingImage.Glyphs.resize(1);
+				HoldingImage.Glyphs[0].Name = NewName;
 				HoldingImage.Glyphs[0].Offset = Resolution{0, 0};
-				HoldingImage.Glyphs[0].Size = NewRes;
-				HoldingImage.Pixels.resize(NewRes.Width * NewRes.Height);
-				for(uint32_t h = 0; h < NewRes.Height; h++) {
-				for(uint32_t w = 0; w < NewRes.Width; w++) {
-					HoldingImage.Pixels[GetCoordinate(w, h, NewRes.Width)] =
-						IMG[i].Pixels[GetCoordinate(Offset.Width + w,Offset.Height + h,IMG[i].Size.Width)];
+				HoldingImage.Glyphs[0].Size = NewSize;
+				HoldingImage.Pixels.resize(NewSize.Width * NewSize.Height);
+				for(uint32_t h = 0; h < NewSize.Height; h++) {
+				for(uint32_t w = 0; w < NewSize.Width; w++) {
+					HoldingImage.Pixels[GetCoordinate(w, h, NewSize.Width)] =
+						IMG[i].Pixels[GetCoordinate(NewOffset.Width + w,NewOffset.Height + h,IMG[i].Size.Width)];
 				}}
 				OutputImages.push_back(HoldingImage);
 			}
@@ -431,12 +440,17 @@ Image Read_png(std::string NAM) {
 	uint32_t t_pos;
 	Image ReturnImage;
 	png::rgba_pixel t_pix;
+	std::string SourceDir;
+	std::string GlyphName;
 	png::image<png::rgba_pixel> t_file(NAM + ".png");
 
 	ReturnImage.Size = {t_file.get_width(), t_file.get_height()};
 	// pngs only have 1 glyph
 	ReturnImage.Glyphs.resize(1);
-	ReturnImage.Glyphs[0].Name = NAM;
+
+	SliceOutLastOfChar(NAM, '/',SourceDir,GlyphName);
+
+	ReturnImage.Glyphs[0].Name = GlyphName;
 	ReturnImage.Glyphs[0].Size = ReturnImage.Size;
 	// handle pixel array
 	ReturnImage.Pixels.resize(ReturnImage.Size.Width * ReturnImage.Size.Height);
@@ -469,9 +483,7 @@ void Write_png(Image IMG, std::string NAM) {
 	}
 	WriteFile.write(NAM + ".png");
 }
-inline uint32_t GetCoordinate(uint32_t XPOS, uint32_t YPOS, uint32_t MAXX) {
-	return (XPOS + (YPOS * MAXX));
-}
+
 std::vector<Image> ReorderByVolume(std::vector<Image> UNORDERED) {
 	std::vector<uint32_t> volumest(UNORDERED.size());
 	uint32_t hold;
@@ -495,6 +507,39 @@ std::vector<Image> ReorderByVolume(std::vector<Image> UNORDERED) {
 		OrderedImages.push_back(UNORDERED[volumest[i]]);
 	}
 	return OrderedImages;
+}
+
+inline uint32_t GetCoordinate(uint32_t XPOS, uint32_t YPOS, uint32_t MAXX) {
+	return (XPOS + (YPOS * MAXX));
+}
+
+void SliceOutLastOfChar(std::string INP, char TARG, std::string &OutStart,
+						std::string &OutEnd) {
+	uint32_t extenpos = 0;
+	std::string holdstr = INP;
+	extenpos = holdstr.size() - 1;
+	while(extenpos > 0) {
+		if(holdstr[extenpos] == TARG) {
+			break;
+		} else {
+			extenpos--;
+		}
+	}
+	if(extenpos == 0) {
+		OutStart = "";
+		OutEnd = holdstr;
+	} else {
+		OutStart = holdstr.substr(0, extenpos);
+		OutEnd = holdstr.substr(extenpos + 1, holdstr.size());
+	}
+}
+std::string LowerCaseify(std::string INP) {
+	for(uint32_t i = 0; i < INP.size(); i++) {
+		if(INP[i] > 64 && INP[i] < 91) {
+			INP[i] += 32;
+		}
+	}
+	return INP;
 }
 } // namespace RGBKS
 

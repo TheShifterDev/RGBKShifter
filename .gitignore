@@ -4,7 +4,6 @@ test.bin
 .cache/*
 Built/*
 compile_commands.json
-Examples/Output/TestAtlas.png
-Examples/Output/Shifted_Example.png
-Examples/Output/TestAtlas.stimpac
-Examples/Output/TestPalletAtlas.png
+Examples/Output/*.png
+Examples/Output/*.stimpac
+Examples/Output/Cutup/*.png

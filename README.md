@@ -13,10 +13,8 @@ png++ - mand
 "Polyducks" for the "japanese woodblock" pallet used in testing https://lospec.com/palette-list/japanese-woodblock
 ## Notes
 # TODO
-* create tests for cutup
-* create test for outputing stimpac
-* create test to cutup stimpac and output pngs
 * change code to have a unified style
 * look into using gd to support more formats
 * look into creating "sequences" for gifs/animations/variants/bumpmaps
 * create a way to use wildcards '*' in file input
+* make cross platform 
