@@ -1,7 +1,6 @@
 #ifndef RGBKS_HEAD_INCLUDE_BARRIER
 #define RGBKS_HEAD_INCLUDE_BARRIER
 #include <cstdint>
-#include <fstream>
 #include <iostream>
 #include <png++/png.hpp> // local install via pacman
 #include <string>
@@ -28,7 +27,7 @@ enum class StimpacVer {
 	//		Size					| 1
 	//			Width				| uint32	| 4
 	//			Height				| uint32	| 4
-	//		Position				| 1
+	//		Offset					| 1
 	//			Width				| uint32	| 4
 	//			Height				| uint32	| 4
 	ENDOF
@@ -47,7 +46,7 @@ struct Colour {
 struct Glyph {
 	std::string Name = "Unnamed";
 	Resolution Size = {64, 64};
-	Resolution Position = {0, 0};
+	Resolution Offset = {0, 0};
 };
 struct Image {
 	Resolution Size = {64, 64};
@@ -76,7 +75,7 @@ void Write_stimpac(Image IMG, std::string NAM);
 
 #endif // RGBKS_HEAD_INCLUDE_BARRIER
 
-#define RGBKS_IMPLEM
+//#define RGBKS_IMPLEM
 #ifdef RGBKS_IMPLEM
 #ifndef RGBKS_BODY_INCLUDE_BARRIER
 #define RGBKS_BODY_INCLUDE_BARRIER
@@ -87,74 +86,47 @@ namespace RGBKS {
 void Write_stimpac(Image IMG, std::string NAM) {
 	std::vector<uint8_t> CharVector;
 	uint32_t GlyphCount;
+	uint32_t CharCount;
 	uint8_t *CharVoodoo;
 
 	// clang-format off
-//	Version						| uint32 	| 4
 	uint32_t Version = ((uint32_t)StimpacVer::V1);
 	CharVoodoo = (uint8_t*)&Version;
-	for (uint32_t i=0;i<4;i++){
-		CharVector.push_back(CharVoodoo[i]);
-	}
-//	MasterImage Resolution		| 1
-//		Width					| uint32 	| 4
-//		Height					| uint32 	| 4
-	CharVoodoo = (uint8_t*)&IMG.Size;
-	for (uint32_t i=0;i<8;i++){
-		CharVector.push_back(CharVoodoo[i]);
-	}
-//	RGBA Pixel Array			| (MasterImage width * height)
-//		Red						| uint8		| 1
-//		Green					| uint8		| 1
-//		Blue					| uint8		| 1
-//		Alpha					| uint8		| 1
+	for (uint32_t i=0;i<4;i++){CharVector.push_back(CharVoodoo[i]);}
+	CharVoodoo = (uint8_t*)&IMG.Size.Width;
+	for (uint32_t i=0;i<4;i++){CharVector.push_back(CharVoodoo[i]);}
+	CharVoodoo = (uint8_t*)&IMG.Size.Height;
+	for (uint32_t i=0;i<4;i++){CharVector.push_back(CharVoodoo[i]);}
 	for(uint32_t i=0;i<IMG.Pixels.size();i++){
 		CharVector.push_back(IMG.Pixels[i].R);
 		CharVector.push_back(IMG.Pixels[i].G);
 		CharVector.push_back(IMG.Pixels[i].B);
 		CharVector.push_back(IMG.Pixels[i].A);
 	}
-//	MasterImage GlyphCount		| uint32	| 4
 	GlyphCount = IMG.Glyphs.size();
 	CharVoodoo = (uint8_t*)&GlyphCount;
-	for(uint32_t i=0;i<4;i++){
-		CharVector.push_back(CharVoodoo[i]);
-	}
-	
-//	Glyph Array					| GlyphCount
+	for(uint32_t i=0;i<4;i++){CharVector.push_back(CharVoodoo[i]);}
 	for(uint32_t q=0;q<IMG.Glyphs.size();q++){
-//		CharCount				| uint32	| 4
-		uint32_t CharCount = IMG.Glyphs[q].Name.size();
+		CharCount = IMG.Glyphs[q].Name.size();
 		CharVoodoo = (uint8_t*)&CharCount;
-		for(uint32_t i=0;i<4;i++){
-			CharVector.push_back(CharVoodoo[i]);
-		}
-//			Name				| CharCount
-			for(uint32_t i=0;i<CharCount;i++){
-				CharVector.push_back(IMG.Glyphs[q].Name[i]);
-			}
-//		Size					| 1
-//			Width				| uint32	| 4
-//			Height				| uint32	| 4
-		CharVoodoo = (uint8_t*)&IMG.Glyphs[q].Size;
-		for (uint32_t i=0;i<8;i++){
-			CharVector.push_back(CharVoodoo[i]);
-		}
-//		Position				| 1
-//			Width				| uint32	| 4
-//			Height				| uint32	| 4
-		CharVoodoo = (uint8_t*)&IMG.Glyphs[q].Position;
-		for (uint32_t i=0;i<8;i++){
-			CharVector.push_back(CharVoodoo[i]);
-		}
+		for(uint32_t i=0;i<4;i++){CharVector.push_back(CharVoodoo[i]);}
+		for(uint32_t i=0;i<CharCount;i++){CharVector.push_back(IMG.Glyphs[q].Name[i]);}
+		CharVoodoo = (uint8_t*)&IMG.Glyphs[q].Size.Width;
+		for (uint32_t i=0;i<4;i++){CharVector.push_back(CharVoodoo[i]);}
+		CharVoodoo = (uint8_t*)&IMG.Glyphs[q].Size.Height;
+		for (uint32_t i=0;i<4;i++){CharVector.push_back(CharVoodoo[i]);}
+		CharVoodoo = (uint8_t*)&IMG.Glyphs[q].Offset.Width;
+		for (uint32_t i=0;i<4;i++){CharVector.push_back(CharVoodoo[i]);}
+		CharVoodoo = (uint8_t*)&IMG.Glyphs[q].Offset.Height;
+		for (uint32_t i=0;i<4;i++){CharVector.push_back(CharVoodoo[i]);}
 	}
-	
 	// write char vector to disk
-	std::ofstream WriteFile(NAM + ".stimpac", std::ios::out);
-	for(uint32_t i=0;i<CharVector.size();i++){
-		WriteFile << CharVector[i];
-	}
+	std::ofstream WriteFile(NAM + ".stimpac",std::ios::binary);
+	WriteFile.write((char*)CharVector.data(),CharVector.size());
 	WriteFile.close();
+	// ISSUE: based on "shity" being written into file for testing "shityy" appears in memory when read meaning something fucked is happening
+	// NOTE: as closing the file adds .2 kib to the file having an internal length written to file is likely a thing to test
+	// NOTE: char vector when writing is 24832 but reading is 24819
 	// clang-format on
 }
 
@@ -166,83 +138,59 @@ Image Read_stimpac(std::string NAM) {
 	uint8_t *CharVoodoo;
 	char HoldChar;
 	uint32_t CurrentPosition = 0;
-	Colour HoldColour;
 	uint32_t GlyphCount;
 	uint32_t CharCount;
 
 	// clang-format off
 	
 	// read file into char vector
-	ReadFile.open(NAM + ".stimpac");
+	ReadFile.open(NAM + ".stimpac",std::ios::binary);
 	if(!ReadFile.is_open()) {
 		printf("could not read %s.\n", NAM.c_str());
 		exit(1);
 	}
-	while(ReadFile.good()) {
-		ReadFile >> HoldChar;
+	while(ReadFile.get(HoldChar)) {
 		CharVector.push_back(HoldChar);
 	}
+	if(!ReadFile.eof()){exit(10);}
 	ReadFile.close();
 	CurrentPosition = 0;
-//	Version						| uint32 	| 4
 	CharVoodoo = (uint8_t*)&CurrentVersion;
 	for(uint32_t i=0;i<4;i++) {CharVoodoo[i]=CharVector[CurrentPosition];CurrentPosition++;}
-
-	if(CurrentVersion >= StimpacVer::ENDOF){
-		exit(12); // file is either invalid or 
-	}
-	
-//	MasterImage Resolution		| 1
-//		Width					| uint32 	| 4
-//		Height					| uint32 	| 4
 	CharVoodoo = (uint8_t*)&OutputImage.Size.Width;
 	for(uint32_t i=0;i<4;i++) {CharVoodoo[i]=CharVector[CurrentPosition];CurrentPosition++;}
 	CharVoodoo = (uint8_t*)&OutputImage.Size.Height;
 	for(uint32_t i=0;i<4;i++) {CharVoodoo[i]=CharVector[CurrentPosition];CurrentPosition++;}
-//	RGBA Pixel Array			| (MasterImage width * height)
-//		Red						| uint8		| 1
-//		Green					| uint8		| 1
-//		Blue					| uint8		| 1
-//		Alpha					| uint8		| 1
 	OutputImage.Pixels.resize(OutputImage.Size.Width * OutputImage.Size.Height);
 	for(uint32_t i=0;i<OutputImage.Pixels.size();i++) {
-		HoldColour.R=CharVector[CurrentPosition+0];
-		HoldColour.G=CharVector[CurrentPosition+1];
-		HoldColour.B=CharVector[CurrentPosition+2];
-		HoldColour.A=CharVector[CurrentPosition+3];
-		OutputImage.Pixels[i] = HoldColour;
-		CurrentPosition+=4;
+		OutputImage.Pixels[i] = {
+		CharVector[CurrentPosition+0],
+		CharVector[CurrentPosition+1],
+		CharVector[CurrentPosition+2],
+		CharVector[CurrentPosition+3]
+		};CurrentPosition+=4;
 	}
-//	MasterImage GlyphCount		| uint32	| 4
 	CharVoodoo = (uint8_t*)&GlyphCount;
 	for(uint32_t i=0;i<4;i++) {CharVoodoo[i] = CharVector[CurrentPosition];CurrentPosition++;}
 	OutputImage.Glyphs.resize(GlyphCount);
-//	Glyph Array					| GlyphCount
 	for (uint32_t q=0;q<OutputImage.Glyphs.size();q++) {
-		CharCount = 0;
-//		CharCount				| uint32	| 4
 		CharVoodoo = (uint8_t*)&CharCount;
 		for(uint32_t i=0;i<4;i++) {CharVoodoo[i] = CharVector[CurrentPosition];CurrentPosition++;}
-//			Name				| CharCount
-			OutputImage.Glyphs[q].Name.resize(CharCount);
-			for (uint32_t i=0;i<OutputImage.Glyphs[q].Name.size();i++) {
-				OutputImage.Glyphs[q].Name[i]=CharVector[CurrentPosition];CurrentPosition++;
-			}
-// BUG: glyphs are reading with broken Size and Position
-//		Size					| 1
-//			Width				| uint32	| 4
-			CharVoodoo = (uint8_t*)&OutputImage.Glyphs[q].Size.Width;
-			for(uint32_t i=0;i<4;i++) {CharVoodoo[i]=CharVector[CurrentPosition];CurrentPosition++;}
-//			Height				| uint32	| 4
-			CharVoodoo = (uint8_t*)&OutputImage.Glyphs[q].Size.Height;
-			for(uint32_t i=0;i<4;i++) {CharVoodoo[i]=CharVector[CurrentPosition];CurrentPosition++;}
-//		Position				| 1
-//			Width				| uint32	| 4
-			CharVoodoo = (uint8_t*)&OutputImage.Glyphs[q].Position.Width;
-			for(uint32_t i=0;i<4;i++) {CharVoodoo[i]=CharVector[CurrentPosition];CurrentPosition++;}
-//			Height				| uint32	| 4
-			CharVoodoo = (uint8_t*)&OutputImage.Glyphs[q].Position.Height;
-			for(uint32_t i=0;i<4;i++) {CharVoodoo[i]=CharVector[CurrentPosition];CurrentPosition++;}
+		OutputImage.Glyphs[q].Name.resize(CharCount);
+		for (uint32_t i=0;i<OutputImage.Glyphs[q].Name.size();i++) {
+			// bug: always segfaults on glyph[1] due to charcount being an insane number
+			// also the second glyph is missing the ./ in ./Examples/Textures/ExampleB"
+			OutputImage.Glyphs[q].Name[i]=CharVector[CurrentPosition];CurrentPosition++;
+		}
+		// in q0 size is being read as 0,0 (impossible) and position is 0,1935008 (insane)
+		CharVoodoo = (uint8_t*)&OutputImage.Glyphs[q].Size.Width;
+		for(uint32_t i=0;i<4;i++) {CharVoodoo[i]=CharVector[CurrentPosition];CurrentPosition++;}
+		CharVoodoo = (uint8_t*)&OutputImage.Glyphs[q].Size.Height;
+		for(uint32_t i=0;i<4;i++) {CharVoodoo[i]=CharVector[CurrentPosition];CurrentPosition++;}
+		CharVoodoo = (uint8_t*)&OutputImage.Glyphs[q].Offset.Width;
+		for(uint32_t i=0;i<4;i++) {CharVoodoo[i]=CharVector[CurrentPosition];CurrentPosition++;}
+		CharVoodoo = (uint8_t*)&OutputImage.Glyphs[q].Offset.Height;
+		for(uint32_t i=0;i<4;i++) {CharVoodoo[i]=CharVector[CurrentPosition];CurrentPosition++;}
 	}
 	return OutputImage;
 	// clang-format on
@@ -264,10 +212,10 @@ std::vector<Image> SeperateGlyphs(std::vector<Image> IMG) {
 		} else {
 			for(uint32_t q = 0; q < IMG[i].Glyphs.size(); q++) {
 				NewRes = IMG[i].Glyphs[q].Size;
-				Offset = IMG[i].Glyphs[q].Position;
+				Offset = IMG[i].Glyphs[q].Offset;
 				HoldingImage.Size = NewRes;
 				HoldingImage.Glyphs.resize(1);
-				HoldingImage.Glyphs[0].Position = Resolution{0, 0};
+				HoldingImage.Glyphs[0].Offset = Resolution{0, 0};
 				HoldingImage.Glyphs[0].Size = NewRes;
 				HoldingImage.Pixels.resize(NewRes.Width * NewRes.Height);
 				for(uint32_t h = 0; h < NewRes.Height; h++) {
@@ -359,8 +307,8 @@ Image MergeImages(std::vector<Image> SUBIMAGES) {
 					uint32_t TargetGlyphID = OrderedSubImages[CurrentShape].Glyphs.size();
 					for(uint32_t CurrentGlyphID = 0;CurrentGlyphID < TargetGlyphID;CurrentGlyphID++){
 						OutputImage.Glyphs[CurrentGlyphs+CurrentGlyphID].Name 			= OrderedSubImages[CurrentShape].Glyphs[CurrentGlyphID].Name;
-						OutputImage.Glyphs[CurrentGlyphs+CurrentGlyphID].Position.Width = OrderedSubImages[CurrentShape].Glyphs[CurrentGlyphID].Position.Width +MXPos;
-						OutputImage.Glyphs[CurrentGlyphs+CurrentGlyphID].Position.Height= OrderedSubImages[CurrentShape].Glyphs[CurrentGlyphID].Position.Height+MYPos;
+						OutputImage.Glyphs[CurrentGlyphs+CurrentGlyphID].Offset.Width	= OrderedSubImages[CurrentShape].Glyphs[CurrentGlyphID].Offset.Width +MXPos;
+						OutputImage.Glyphs[CurrentGlyphs+CurrentGlyphID].Offset.Height	= OrderedSubImages[CurrentShape].Glyphs[CurrentGlyphID].Offset.Height+MYPos;
 						OutputImage.Glyphs[CurrentGlyphs+CurrentGlyphID].Size 			= OrderedSubImages[CurrentShape].Glyphs[CurrentGlyphID].Size;
 					}
 					CurrentGlyphs += TargetGlyphID;
