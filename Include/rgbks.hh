@@ -81,7 +81,6 @@ std::string LowerCaseify(std::string INP);
 
 #endif // RGBKS_HEAD_INCLUDE_BARRIER
 
-#define RGBKS_IMPLEM
 #ifdef RGBKS_IMPLEM
 #ifndef RGBKS_BODY_INCLUDE_BARRIER
 #define RGBKS_BODY_INCLUDE_BARRIER
