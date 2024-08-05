@@ -45,13 +45,13 @@ struct Colour {
 };
 struct Glyph {
 	std::string Name = "Unnamed";
-	Resolution Size = {64, 64};
-	Resolution Offset = {0, 0};
+	RGBKS::Resolution Size = {64, 64};
+	RGBKS::Resolution Offset = {0, 0};
 };
 struct Image {
-	Resolution Size = {64, 64};
-	std::vector<Colour> Pixels{};
-	std::vector<Glyph> Glyphs{};
+	RGBKS::Resolution Size = {64, 64};
+	std::vector<RGBKS::Colour> Pixels{};
+	std::vector<RGBKS::Glyph> Glyphs{};
 };
 
 // NOTE: NEVER USE MACROS LIKE
@@ -61,16 +61,16 @@ struct Image {
 // CAUSED A BUG THAT TOOK DAYS TO TRACK
 inline uint32_t GetCoordinate(uint32_t XPOS, uint32_t YPOS, uint32_t MAXX);
 
-std::vector<Image> SeperateGlyphs(std::vector<Image> IMG);
-std::vector<Image> ReorderByVolume(std::vector<Image> IMG);
-float GetRGBColourDistance(Colour A, Colour B);
-void PalletiseImage(Image &IMG, std::vector<Colour> PAL);
-Image MergeImages(std::vector<Image> IMG);
-std::vector<Colour> ExtractPallet_Image(Image IMG);
+std::vector<RGBKS::Image> SeperateGlyphs(std::vector<RGBKS::Image> IMG);
+std::vector<RGBKS::Image> ReorderByVolume(std::vector<RGBKS::Image> IMG);
+float GetRGBColourDistance(RGBKS::Colour A, RGBKS::Colour B);
+void PalletiseImage(RGBKS::Image &IMG, std::vector<RGBKS::Colour> PAL);
+Image MergeImages(std::vector<RGBKS::Image> IMG);
+std::vector<Colour> ExtractPallet_Image(RGBKS::Image IMG);
 Image Read_png(std::string NAM);
-void Write_png(Image IMG, std::string NAM);
+void Write_png(RGBKS::Image IMG, std::string NAM);
 Image Read_stimpac(std::string NAM);
-void Write_stimpac(Image IMG, std::string NAM);
+void Write_stimpac(RGBKS::Image IMG, std::string NAM);
 void SliceOutLastOfChar(std::string INP,
 						char TARG,
 						std::string &OutStart,
