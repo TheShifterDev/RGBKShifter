@@ -223,7 +223,8 @@ std::vector<Image> SeperateGlyphs(std::vector<Image> IMG) {
 				HoldingImage.Size = NewSize;
 				HoldingImage.Glyphs.resize(1);
 				HoldingImage.Glyphs[0].Name = NewName;
-				HoldingImage.Glyphs[0].Offset = Resolution{0, 0};
+				HoldingImage.Glyphs[0].Offset.Width = 0;
+				HoldingImage.Glyphs[0].Offset.Height = 0;
 				HoldingImage.Glyphs[0].Size = NewSize;
 				HoldingImage.Pixels.resize(NewSize.Width * NewSize.Height);
 				for(uint32_t h = 0; h < NewSize.Height; h++) {
@@ -253,8 +254,12 @@ Image MergeImages(std::vector<Image> SUBIMAGES) {
 	uint32_t CheckLimitY;
 	uint32_t CurrentShape = 0;
 	// get total required volume
-	Resolution ExpectedSize = 	{0,0};
-	Resolution MaxSize = 		{0,0};
+	Resolution ExpectedSize;
+	ExpectedSize.Width = 0;
+	ExpectedSize.Height = 0;
+	Resolution MaxSize;
+	MaxSize.Width = 0;
+	MaxSize.Height = 0;
 
 	uint32_t CurrentGlyphs = 0;
 	uint32_t MaxGlyphs = 0;
@@ -427,7 +432,8 @@ Image Read_png(std::string NAM) {
 	std::string SourceDir;
 	std::string GlyphName;
 	png::image<png::rgba_pixel> PngFile(NAM + ".png");
-	ReturnImage.Size = {PngFile.get_width(), PngFile.get_height()};
+	ReturnImage.Size.Width = PngFile.get_width();
+	ReturnImage.Size.Height = PngFile.get_height();
 	// pngs only have 1 glyph
 	ReturnImage.Glyphs.resize(1);
 	SliceOutLastOfChar(NAM, '/',SourceDir,GlyphName);
