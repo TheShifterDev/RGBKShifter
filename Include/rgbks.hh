@@ -36,6 +36,11 @@ enum class StimpacVer {
 struct Resolution {
 	uint32_t Width = 0;
 	uint32_t Height = 0;
+
+	Resolution(void){}
+	Resolution(uint32_t E){Width = E;Height = E;}
+	Resolution(uint32_t I,uint32_t Q){Width = I;Height = Q;}
+	// ^ only exist to prevent garbage errors
 };
 struct Colour {
 	uint8_t R = 0;
