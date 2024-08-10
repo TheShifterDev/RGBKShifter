@@ -3,8 +3,6 @@
 #define RGBKS_IMPLEM
 #include "../Include/rgbks.hh"
 
-#include <cstring>
-#include <iostream>
 #include <string>
 
 enum class CommandEnum {

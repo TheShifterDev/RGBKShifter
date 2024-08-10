@@ -1,10 +1,15 @@
 #ifndef RGBKS_HEAD_INCLUDE_BARRIER
 #define RGBKS_HEAD_INCLUDE_BARRIER
-#include <cstdint>
-#include <iostream>
+
+#ifdef USING_PNGPP
 #include <png++/png.hpp> // local install via pacman
+#endif
+
+#include <iostream>
+#include <cstdint>
 #include <string>
 #include <vector>
+#include <fstream>
 
 namespace RGBKS {
 
@@ -429,6 +434,7 @@ void PalletiseImage(Image &IMG, std::vector<Colour> PAL) {
 		IMG.Pixels[i].B = PAL[ClosestPalletColour].B;
 	}
 }
+#ifdef USING_PNGPP
 Image Read_png(std::string NAM) {
 	// assumes .png has been trimmed off
 	uint32_t HoldPosition;
@@ -458,6 +464,8 @@ Image Read_png(std::string NAM) {
 	}
 	return ReturnImage;
 }
+#endif
+#ifdef USING_PNGPP
 void Write_png(Image IMG, std::string NAM) {
 	png::image<png::rgba_pixel> WriteFile;
 	WriteFile.resize(IMG.Size.Width, IMG.Size.Height);
@@ -475,6 +483,7 @@ void Write_png(Image IMG, std::string NAM) {
 	}
 	WriteFile.write(NAM + ".png");
 }
+#endif
 
 std::vector<Image> ReorderByVolume(std::vector<Image> UNORDERED) {
 	std::vector<uint32_t> volumest(UNORDERED.size());
