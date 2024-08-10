@@ -3,7 +3,7 @@
 PREMADE=false # skips compiling and use premade version (Not Recommended)
 
 if $PREMADE; then 
-# PREMADE = false
+# PREMADE = true
 # links premade bin to usr/bin
 sudo ln -f ./Premade/$PROGNAME.bin /usr/bin/$PROGNAME
 
