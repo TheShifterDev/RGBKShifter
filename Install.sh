@@ -6,13 +6,10 @@ COMPFLAG=" -pedantic -Wall -Wshadow"
 LIBPNG=" `libpng-config --cflags --ldflags`"
 
 
-# PREMADE = false
 # IMPORTANT: only have 1 enable at a time or compiler will complain
 U_PNGPP=true
 
-
 # compiles and puts a symlink to prog in /usr/bin/
-#bear -- g++ $DEBGFLAG $COMPFLAG $LIBPNG Src/main.cpp -o Built/$PROGNAME.bin
 COMMAND="$DEBGFLAG $COMPFLAG"
 ######################
 if $U_PNGPP; then # requires png++ (c++ wrapper for libpng)
