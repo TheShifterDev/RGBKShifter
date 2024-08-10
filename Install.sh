@@ -1,19 +1,11 @@
 #!/bin/bash
 
-PREMADE=true # skips compiling and use premade version (Not Recommended)
-
 PROGNAME="rgbkshifter"
 DEBGFLAG=" -O0 -ggdb"
 COMPFLAG=" -pedantic -Wall -Wshadow"
 LIBPNG=" `libpng-config --cflags --ldflags`"
 
 
-if $PREMADE; then 
-# PREMADE = true
-# links premade bin to usr/bin
-sudo ln -f ./Premade/$PROGNAME.bin /usr/bin/$PROGNAME
-
-else 
 # PREMADE = false
 # IMPORTANT: only have 1 enable at a time or compiler will complain
 U_PNGPP=true
@@ -30,8 +22,6 @@ fi
 COMMAND=$COMMAND" Src/main.cpp -o Built/$PROGNAME.bin"
 g++ $COMMAND
 sudo ln -f ./Built/$PROGNAME.bin /usr/bin/$PROGNAME
-
-fi # endof PREMADE = false
 
 #copys rgbkShifters includes into /usr/include/rgbkShifter/
 sudo rm -rf /usr/include/$PROGNAME
