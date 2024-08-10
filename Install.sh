@@ -1,6 +1,12 @@
 #!/bin/bash
 
-PREMADE=false # skips compiling and use premade version (Not Recommended)
+PREMADE=true # skips compiling and use premade version (Not Recommended)
+
+PROGNAME="rgbkshifter"
+DEBGFLAG=" -O0 -ggdb"
+COMPFLAG=" -pedantic -Wall -Wshadow"
+LIBPNG=" `libpng-config --cflags --ldflags`"
+
 
 if $PREMADE; then 
 # PREMADE = true
@@ -11,11 +17,6 @@ else
 # PREMADE = false
 # IMPORTANT: only have 1 enable at a time or compiler will complain
 U_PNGPP=true
-
-PROGNAME="rgbkshifter"
-DEBGFLAG=" -O0 -ggdb"
-COMPFLAG=" -pedantic -Wall -Wshadow"
-LIBPNG=" `libpng-config --cflags --ldflags`"
 
 
 # compiles and puts a symlink to prog in /usr/bin/
