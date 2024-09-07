@@ -141,9 +141,6 @@ void Write_stimpac(Image IMG, std::string NAM) {
 	std::ofstream WriteFile(NAM + ".stimpac",std::ios::binary);
 	WriteFile.write((char*)CharVector.data(),CharVector.size());
 	WriteFile.close();
-	// ISSUE: based on "shity" being written into file for testing "shityy" appears in memory when read meaning something fucked is happening
-	// NOTE: as closing the file adds .2 kib to the file having an internal length written to file is likely a thing to test
-	// NOTE: char vector when writing is 24832 but reading is 24819
 	// clang-format on
 }
 
@@ -195,11 +192,8 @@ Image Read_stimpac(std::string NAM) {
 		for(uint32_t i=0;i<4;i++) {CharVoodoo[i] = CharVector[CurrentPosition];CurrentPosition++;}
 		OutputImage.Glyphs[q].Name.resize(CharCount);
 		for (uint32_t i=0;i<OutputImage.Glyphs[q].Name.size();i++) {
-			// bug: always segfaults on glyph[1] due to charcount being an insane number
-			// also the second glyph is missing the ./ in ./Examples/Textures/ExampleB"
 			OutputImage.Glyphs[q].Name[i]=CharVector[CurrentPosition];CurrentPosition++;
 		}
-		// in q0 size is being read as 0,0 (impossible) and position is 0,1935008 (insane)
 		CharVoodoo = (uint8_t*)&OutputImage.Glyphs[q].Size.Width;
 		for(uint32_t i=0;i<4;i++) {CharVoodoo[i]=CharVector[CurrentPosition];CurrentPosition++;}
 		CharVoodoo = (uint8_t*)&OutputImage.Glyphs[q].Size.Height;
