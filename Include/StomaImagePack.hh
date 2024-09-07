@@ -1,5 +1,5 @@
-#ifndef RGBKS_HEAD_INCLUDE_BARRIER
-#define RGBKS_HEAD_INCLUDE_BARRIER
+#ifndef STOMAIMAGEPACK_HEAD_INCLUDE_BARRIER
+#define STOMAIMAGEPACK_HEAD_INCLUDE_BARRIER
 
 #ifdef USING_PNGPP
 #include <png++/png.hpp> // local install via pacman
@@ -11,30 +11,32 @@
 #include <vector>
 #include <fstream>
 
-namespace RGBKS {
+namespace StomaImagePack {
 
 enum class StimpacVer {
 	V1,
-	//	stimpac spec for V1
-	//	Version						| uint32 	| 4
-	//	Resolution					| 1
-	//		Width					| uint32 	| 4
-	//		Height					| uint32 	| 4
-	//	RGBA Pixel Array			| (Width * Height)
-	//		Red						| uint8		| 1
-	//		Green					| uint8		| 1
-	//		Blue					| uint8		| 1
-	//		Alpha					| uint8		| 1
-	//	GlyphCount					| uint32	| 4
-	//	Glyph Array					| GlyphCount
-	//		CharCount				| uint32	| 4
-	//			Name				| CharCount
-	//		Size					| 1
-	//			Width				| uint32	| 4
-	//			Height				| uint32	| 4
-	//		Offset					| 1
-	//			Width				| uint32	| 4
-	//			Height				| uint32	| 4
+	/*
+	stimpac spec for V1
+	Version						| uint32 	| 4
+	Resolution					| 1
+		Width					| uint32 	| 4
+		Height					| uint32 	| 4
+	RGBA Pixel Array			| (Width * Height)
+		Red						| uint8		| 1
+		Green					| uint8		| 1
+		Blue					| uint8		| 1
+		Alpha					| uint8		| 1
+	GlyphCount					| uint32	| 4
+	Glyph Array					| GlyphCount
+		CharCount				| uint32	| 4
+			Name				| CharCount
+		Size					| 1
+			Width				| uint32	| 4
+			Height				| uint32	| 4
+		Offset					| 1
+			Width				| uint32	| 4
+			Height				| uint32	| 4	
+	*/
 	ENDOF
 };
 
@@ -55,13 +57,13 @@ struct Colour {
 };
 struct Glyph {
 	std::string Name = "Unnamed";
-	RGBKS::Resolution Size = {64, 64};
-	RGBKS::Resolution Offset = {0, 0};
+	StomaImagePack::Resolution Size = {64, 64};
+	StomaImagePack::Resolution Offset = {0, 0};
 };
 struct Image {
-	RGBKS::Resolution Size = {64, 64};
-	std::vector<RGBKS::Colour> Pixels{};
-	std::vector<RGBKS::Glyph> Glyphs{};
+	StomaImagePack::Resolution Size = {64, 64};
+	std::vector<StomaImagePack::Colour> Pixels{};
+	std::vector<StomaImagePack::Glyph> Glyphs{};
 };
 
 // NOTE: NEVER USE MACROS LIKE
@@ -71,31 +73,31 @@ struct Image {
 // CAUSED A BUG THAT TOOK DAYS TO TRACK
 inline uint32_t GetCoordinate(uint32_t XPOS, uint32_t YPOS, uint32_t MAXX);
 
-std::vector<RGBKS::Image> SeperateGlyphs(std::vector<RGBKS::Image> IMG);
-std::vector<RGBKS::Image> ReorderByVolume(std::vector<RGBKS::Image> IMG);
-float GetRGBColourDistance(RGBKS::Colour A, RGBKS::Colour B);
-void PalletiseImage(RGBKS::Image &IMG, std::vector<RGBKS::Colour> PAL);
-Image MergeImages(std::vector<RGBKS::Image> IMG);
-std::vector<Colour> ExtractPallet_Image(RGBKS::Image IMG);
+std::vector<StomaImagePack::Image> SeperateGlyphs(std::vector<StomaImagePack::Image> IMG);
+std::vector<StomaImagePack::Image> ReorderByVolume(std::vector<StomaImagePack::Image> IMG);
+float GetRGBColourDistance(StomaImagePack::Colour A, StomaImagePack::Colour B);
+void PalletiseImage(StomaImagePack::Image &IMG, std::vector<StomaImagePack::Colour> PAL);
+Image MergeImages(std::vector<StomaImagePack::Image> IMG);
+std::vector<Colour> ExtractPallet_Image(StomaImagePack::Image IMG);
 Image Read_png(std::string NAM);
-void Write_png(RGBKS::Image IMG, std::string NAM);
+void Write_png(StomaImagePack::Image IMG, std::string NAM);
 Image Read_stimpac(std::string NAM);
-void Write_stimpac(RGBKS::Image IMG, std::string NAM);
+void Write_stimpac(StomaImagePack::Image IMG, std::string NAM);
 void SliceOutLastOfChar(std::string INP,
 						char TARG,
 						std::string &OutStart,
 						std::string &OutEnd);
 std::string LowerCaseify(std::string INP);
 
-} // namespace RGBKS
+} // namespace StomaImagePack
 
 #endif // RGBKS_HEAD_INCLUDE_BARRIER
 
-#ifdef RGBKS_IMPLEM
-#ifndef RGBKS_BODY_INCLUDE_BARRIER
-#define RGBKS_BODY_INCLUDE_BARRIER
+#ifdef STOMAIMAGEPACK_IMPLEM
+#ifndef STOMAIMAGEPACK_BODY_INCLUDE_BARRIER
+#define STOMAIMAGEPACK_BODY_INCLUDE_BARRIER
 
-namespace RGBKS {
+namespace StomaImagePack {
 // TODO: fix stimpac read/write resulting in mangled image sizes
 
 void Write_stimpac(Image IMG, std::string NAM) {
@@ -542,7 +544,7 @@ std::string LowerCaseify(std::string INP) {
 	}
 	return INP;
 }
-} // namespace RGBKS
+} // namespace StomaImagePack
 
-#endif // RGBKS_BODY_INCLUDE_BARRIER
-#endif // RGBKS_IMPLEM
+#endif // STOMAIMAGEPACK_BODY_INCLUDE_BARRIER
+#endif // STOMAIMAGEPACK_IMPLEM

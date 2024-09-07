@@ -1,7 +1,7 @@
 
-#include "../Include/rgbks.hh"
-#define RGBKS_IMPLEM
-#include "../Include/rgbks.hh"
+#include "../Include/StomaImagePack.hh"
+#define STOMAIMAGEPACK_IMPLEM
+#include "../Include/StomaImagePack.hh"
 
 #include <string>
 
@@ -21,7 +21,7 @@ enum class FileType {
 	ENDOF
 };
 
-void WriteOut(RGBKS::Image IMG, std::string NAM);
+void WriteOut(StomaImagePack::Image IMG, std::string NAM);
 
 
 bool CommandList[(uint8_t)CommandEnum::ENDOF] = {};
@@ -30,7 +30,7 @@ std::string OutName = "rgbkshifted"; // used in -n/--name
 std::string OutDir = "";			 // used in -o/--out
 std::string PaletFile = "";
 // clang-format off
-std::vector<RGBKS::Colour> PalletColours{
+std::vector<StomaImagePack::Colour> PalletColours{
 	// shifter pallet
 	{255, 255, 255, 255}, // white
 	{0, 0, 0, 255},		  // black
@@ -61,7 +61,7 @@ std::string HelpText =
 int main(int argc, char *argv[]) {
 	// parse args
 	std::vector<std::string> FileList;
-	std::vector<RGBKS::Image> ImageList;
+	std::vector<StomaImagePack::Image> ImageList;
 	std::string hold;
 	int t_i = 1;
 	if(argc == 1) {
@@ -128,15 +128,15 @@ int main(int argc, char *argv[]) {
 		std::string ImageName = "";
 		std::string ImageExtension = "";
 		std::string ReadLocation = "";
-		RGBKS::Image TempImage;
+		StomaImagePack::Image TempImage;
 		for(uint32_t i = 0; i < FileList.size(); i++) {
 			// split "./gorbinos/file.png" to "./gorbinos/file" & "png"
-			RGBKS::SliceOutLastOfChar(FileList[i], '.', ImageName, ImageExtension);
+			StomaImagePack::SliceOutLastOfChar(FileList[i], '.', ImageName, ImageExtension);
 			if(ImageExtension == "png") {
-				TempImage = RGBKS::Read_png(ImageName);
+				TempImage = StomaImagePack::Read_png(ImageName);
 				ImageList.push_back(TempImage);
 			} else if(ImageExtension == "stimpac") {
-				TempImage = RGBKS::Read_stimpac(ImageName);
+				TempImage = StomaImagePack::Read_stimpac(ImageName);
 				ImageList.push_back(TempImage);
 			}
 		}
@@ -149,15 +149,15 @@ int main(int argc, char *argv[]) {
 		if(CommandList[(uint8_t)CommandEnum::Palet]) {
 			std::string PalletName;
 			std::string PalletExtension;
-			RGBKS::Image PalletImage;
-			RGBKS::SliceOutLastOfChar(PaletFile, '.', PalletName, PalletExtension);
+			StomaImagePack::Image PalletImage;
+			StomaImagePack::SliceOutLastOfChar(PaletFile, '.', PalletName, PalletExtension);
 			if(PalletExtension == "png") {
-				PalletImage = RGBKS::Read_png(PalletName);
-				PalletColours = RGBKS::ExtractPallet_Image(PalletImage);
+				PalletImage = StomaImagePack::Read_png(PalletName);
+				PalletColours = StomaImagePack::ExtractPallet_Image(PalletImage);
 			}
 		}
 		for(uint32_t i = 0; i < ImageList.size(); i++) {
-			RGBKS::PalletiseImage(ImageList[i], PalletColours);
+			StomaImagePack::PalletiseImage(ImageList[i], PalletColours);
 		}
 	}
 
@@ -167,7 +167,7 @@ int main(int argc, char *argv[]) {
 		if(!CommandList[(uint8_t)CommandEnum::Format]) {
 			OutFileType = FileType::STIMPAC;
 		}
-		RGBKS::Image AtlasImage = RGBKS::MergeImages(ImageList);
+		StomaImagePack::Image AtlasImage = StomaImagePack::MergeImages(ImageList);
 		WriteOut(AtlasImage, OutDir + OutName);
 	} else
 	if(CommandList[(uint8_t)CommandEnum::Cutup]) {
@@ -175,8 +175,8 @@ int main(int argc, char *argv[]) {
 		if(!CommandList[(uint8_t)CommandEnum::Format]) {
 			OutFileType = FileType::PNG;
 		}
-		std::vector<RGBKS::Image> GlyphImageList =
-			RGBKS::SeperateGlyphs(ImageList);
+		std::vector<StomaImagePack::Image> GlyphImageList =
+			StomaImagePack::SeperateGlyphs(ImageList);
 		for(uint32_t i = 0; i < GlyphImageList.size(); i++) {
 			WriteOut(GlyphImageList[i],
 					 OutDir + OutName + GlyphImageList[i].Glyphs[0].Name);
@@ -195,10 +195,10 @@ int main(int argc, char *argv[]) {
 	return 0;
 }
 
-void WriteOut(RGBKS::Image IMG, std::string NAM) {
+void WriteOut(StomaImagePack::Image IMG, std::string NAM) {
 	if(OutFileType == FileType::PNG) {
-		RGBKS::Write_png(IMG, NAM);
+		StomaImagePack::Write_png(IMG, NAM);
 	} else {
-		RGBKS::Write_stimpac(IMG, NAM);
+		StomaImagePack::Write_stimpac(IMG, NAM);
 	}
 }

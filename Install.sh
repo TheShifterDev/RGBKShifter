@@ -20,7 +20,7 @@ COMMAND=$COMMAND" Src/main.cpp -o Built/$PROGNAME.bin"
 g++ $COMMAND
 sudo ln -f ./Built/$PROGNAME.bin /usr/bin/$PROGNAME
 
-#copys rgbkShifters includes into /usr/include/rgbkShifter/
-sudo rm -rf /usr/include/$PROGNAME
-sudo mkdir /usr/include/$PROGNAME
-sudo cp Include/* /usr/include/$PROGNAME/
+#copys rgbkShifters includes into /usr/include/StomaImagePack/
+sudo rm -rf /usr/include/StomaImagePack
+sudo mkdir /usr/include/StomaImagePack
+sudo cp Include/* /usr/include/StomaImagePack/
