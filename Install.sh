@@ -9,7 +9,7 @@ U_PNGPP=true
 # compiles and puts a symlink to prog in /usr/bin/
 COMMAND="$DEBGFLAG $COMPFLAG $LIBPNG -DUSING_PNGPP"
 ######################
-COMMAND=$COMMAND" Src/main.cpp -o Built/$PROGNAME.bin"
+COMMAND=$COMMAND" Src/$PROGNAME.cpp -o Built/$PROGNAME.bin"
 
 bear -- g++ $COMMAND
 sudo ln -f ./Built/$PROGNAME.bin /usr/bin/$PROGNAME

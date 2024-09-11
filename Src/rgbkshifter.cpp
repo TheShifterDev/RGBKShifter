@@ -96,7 +96,7 @@ int main(int argc, char *argv[]) {
 		if(hold[0] == '-') {
 			if(hold == "-h" || hold == "--help") {
 				// help request
-				printf(HelpText.c_str());
+				printf("%s\n",HelpText.c_str());
 				exit(0);
 			} else if(hold == "-n" || hold == "--name") {
 				// output prefix
