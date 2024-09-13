@@ -2,7 +2,8 @@
 test.bin
 .clang-format
 .cache/*
-Built/*
+Built/*.exe
+Built/*.bin
 compile_commands.json
 Examples/Output/*.png
 Examples/Output/*.stimpac
