@@ -1,9 +1,11 @@
 # Description 
 * A cli app to make creation of game-ready Textures and Atlas' easier.
 * Made for me but expanded so that it has features others would like.
+* Requires StomaImagePack from github.com/TheShifterDev/StomaImagePack
 * While this is a project without any specific licence, credit and atribution would be appreciated if you use this for something cool \<3.
 # Requirements 
-* png++ - mandatory
+* StomaImagePack
+* png++
 # Features
 * Paletises images to the colours of an input file "-p/--paletise"
 * Shifts all an images colours to extremes "-s/--shift" 
