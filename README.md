@@ -17,6 +17,7 @@
 * "Polyducks" for the "japanese woodblock" pallet used in testing https://lospec.com/palette-list/japanese-woodblock
 # Notes
 ## TODO
+* fix issue where passing 2 images causes a silent failure
 * prevent creation of stimpac's if no files were fed
 * look into using gd to support more formats
 * look into creating "sequences" for gifs/animations/variants/bumpmaps

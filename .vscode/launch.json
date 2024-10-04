@@ -104,7 +104,22 @@
 			],
 			"cwd": "/home/matthew/Documents/Projects/CPP/rgbkShifter",
 			"program": "${workspaceFolder}/Built/rgbkshifter.bin"
+		},
+		{
+			"name": "Bingus Test",
+			"type": "lldb",
+			"request": "launch",
+			"args": [
+				"-n",
+				"Images",
+				"-o",
+				"./Examples/Output/Bingus",
+				"-a",
+				"./Examples/Textures/GreenFace.png",
+				"./Examples/Textures/PoolDay.png"
+			],
+			"cwd": "/home/matthew/Documents/Projects/CPP/rgbkShifter",
+			"program": "${workspaceFolder}/Built/rgbkshifter.bin"
 		}
-
 	]
 }
