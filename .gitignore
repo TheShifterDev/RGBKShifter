@@ -5,6 +5,5 @@ test.bin
 Built/*.exe
 Built/*.bin
 compile_commands.json
-Examples/Output/*.png
-Examples/Output/*.stimpac
-Examples/Output/Cutup/*.png
+Examples/Output/**/*.stimpac
+Examples/Output/**/*.png

@@ -372,6 +372,14 @@ StomaImagePack::Image MergeImages(std::vector<StomaImagePack::Image> SUBIMAGES) 
 	}
 	OutputImage.Glyphs.resize(MaxGlyphs);
 	// get base total size for new image
+	// NOTE: new method is more reliant on trimming
+	for (uint32_t i = 0;i<OrderedSubImages.size();i++){
+		ExpectedSize.Width  += OrderedSubImages[i].Size.Width;
+		ExpectedSize.Height += OrderedSubImages[i].Size.Height;
+	}
+	
+	// NOTE: old method
+	/*
 	for (uint32_t i = 0;i<OrderedSubImages.size();i++){
 		// width
 		ExpectedSize.Width += OrderedSubImages[i].Size.Width;
@@ -382,6 +390,7 @@ StomaImagePack::Image MergeImages(std::vector<StomaImagePack::Image> SUBIMAGES) 
 		ExpectedSize.Height += OrderedSubImages[i].Size.Height;
 		if (ExpectedSize.Height>=(MaxSize.Height - ExpectedSize.Height)){break;}		
 	}
+	*/
 	
 	OutputImage.Size = ExpectedSize;
 	uint32_t hold = ExpectedSize.Width*ExpectedSize.Height;
@@ -433,6 +442,7 @@ StomaImagePack::Image MergeImages(std::vector<StomaImagePack::Image> SUBIMAGES) 
 		DrawDoneBreakout:;
 		if(DrawDone == false){
 			exit(5);
+			// NOTE: 2 images of the same size causes an exit5
 		}
 	}
 	// ---------------------------TRIM--------------------------------//

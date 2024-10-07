@@ -11,5 +11,6 @@ COMMAND="$DEBGFLAG $COMPFLAG $LIBPNG -DUSING_PNGPP"
 ######################
 COMMAND=$COMMAND" Src/$PROGNAME.cpp -o Built/$PROGNAME.bin"
 
-bear -- g++ $COMMAND
+#bear -- g++ $COMMAND
+g++ $COMMAND
 sudo ln -f ./Built/$PROGNAME.bin /usr/bin/$PROGNAME
