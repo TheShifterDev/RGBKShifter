@@ -5,6 +5,8 @@
 
 #include <png++/png.hpp> // local install via pacman
 
+// #include <freetype2/ft2build.h>
+
 #include <string>
 
 enum class CommandEnum {
@@ -25,9 +27,8 @@ enum class FileType {
 
 void Write_png(StomaImagePack::Image IMG, std::string NAM);
 StomaImagePack::Image Read_png(std::string NAM);
-void SliceOutLastOfChar(std::string INP,
-						char TARG,
-						std::string &OutStart,
+StomaImagePack::Image Read_ttf(std::string NAM);
+void SliceOutLastOfChar(std::string INP, char TARG, std::string &OutStart,
 						std::string &OutEnd);
 std::string LowerCaseify(std::string INP);
 void WriteOut(StomaImagePack::Image IMG, std::string NAM);
@@ -38,13 +39,16 @@ void WriteOut(StomaImagePack::Image IMG, std::string NAM);
 // CAUSED A BUG THAT TOOK DAYS TO TRACK
 inline uint32_t GetCoordinate(uint32_t XPOS, uint32_t YPOS, uint32_t MAXX);
 
-std::vector<StomaImagePack::Image> SeperateGlyphs(std::vector<StomaImagePack::Image> IMG);
-std::vector<StomaImagePack::Image> ReorderByVolume(std::vector<StomaImagePack::Image> IMG);
+std::vector<StomaImagePack::Image>
+SeperateGlyphs(std::vector<StomaImagePack::Image> IMG);
+std::vector<StomaImagePack::Image>
+ReorderByVolume(std::vector<StomaImagePack::Image> IMG);
 float GetRGBColourDistance(StomaImagePack::Colour A, StomaImagePack::Colour B);
-void PalletiseImage(StomaImagePack::Image &IMG, std::vector<StomaImagePack::Colour> PAL);
+void PalletiseImage(StomaImagePack::Image &IMG,
+					std::vector<StomaImagePack::Colour> PAL);
 StomaImagePack::Image MergeImages(std::vector<StomaImagePack::Image> IMG);
-std::vector<StomaImagePack::Colour> ExtractPallet_Image(StomaImagePack::Image IMG);
-
+std::vector<StomaImagePack::Colour>
+ExtractPallet_Image(StomaImagePack::Image IMG);
 
 bool CommandList[(uint8_t)CommandEnum::ENDOF] = {};
 FileType OutFileType;
@@ -96,7 +100,7 @@ int main(int argc, char *argv[]) {
 		if(hold[0] == '-') {
 			if(hold == "-h" || hold == "--help") {
 				// help request
-				printf("%s\n",HelpText.c_str());
+				printf("%s\n", HelpText.c_str());
 				exit(0);
 			} else if(hold == "-n" || hold == "--name") {
 				// output prefix
@@ -191,8 +195,7 @@ int main(int argc, char *argv[]) {
 		}
 		StomaImagePack::Image AtlasImage = MergeImages(ImageList);
 		WriteOut(AtlasImage, OutDir + OutName);
-	} else
-	if(CommandList[(uint8_t)CommandEnum::Cutup]) {
+	} else if(CommandList[(uint8_t)CommandEnum::Cutup]) {
 		// output every glyph as unique files
 		if(!CommandList[(uint8_t)CommandEnum::Format]) {
 			OutFileType = FileType::PNG;
@@ -201,7 +204,7 @@ int main(int argc, char *argv[]) {
 			SeperateGlyphs(ImageList);
 		for(uint32_t i = 0; i < GlyphImageList.size(); i++) {
 			WriteOut(GlyphImageList[i],
-					 OutDir + OutName + GlyphImageList[i].Glyphs[0].Name);
+					 OutDir + OutName + GlyphImageList[i].Groups[0].Name);
 		}
 	} else {
 		// output all input files after processing
@@ -210,7 +213,7 @@ int main(int argc, char *argv[]) {
 		}
 		for(uint32_t i = 0; i < ImageList.size(); i++) {
 			WriteOut(ImageList[i],
-					 OutDir + OutName + ImageList[i].Glyphs[0].Name);
+					 OutDir + OutName + ImageList[i].Groups[0].Name);
 		}
 	}
 
@@ -225,6 +228,11 @@ void WriteOut(StomaImagePack::Image IMG, std::string NAM) {
 	}
 }
 
+StomaImagePack::Image Read_ttf(std::string NAM) {
+	StomaImagePack::Image ReturnImage;
+
+	return ReturnImage;
+}
 StomaImagePack::Image Read_png(std::string NAM) {
 	// assumes .png has been trimmed off
 	uint32_t HoldPosition;
@@ -236,10 +244,11 @@ StomaImagePack::Image Read_png(std::string NAM) {
 	ReturnImage.Size.Width = PngFile.get_width();
 	ReturnImage.Size.Height = PngFile.get_height();
 	// pngs only have 1 glyph
-	ReturnImage.Glyphs.resize(1);
-	SliceOutLastOfChar(NAM, '/',SourceDir,GlyphName);
-	ReturnImage.Glyphs[0].Name = GlyphName;
-	ReturnImage.Glyphs[0].Size = ReturnImage.Size;
+	ReturnImage.Groups.resize(1);
+	ReturnImage.Groups[0].Glyphs.resize(1);
+	SliceOutLastOfChar(NAM, '/', SourceDir, GlyphName);
+	ReturnImage.Groups[0].Glyphs[0].Name = GlyphName;
+	ReturnImage.Groups[0].Glyphs[0].Size = ReturnImage.Size;
 	// handle pixel array
 	ReturnImage.Pixels.resize(ReturnImage.Size.Width * ReturnImage.Size.Height);
 	for(uint32_t h = 0; h < ReturnImage.Size.Height; h++) {
@@ -301,195 +310,227 @@ std::string LowerCaseify(std::string INP) {
 	return INP;
 }
 
-std::vector<StomaImagePack::Image> SeperateGlyphs(std::vector<StomaImagePack::Image> IMG) {
+std::vector<StomaImagePack::Image>
+SeperateGlyphs(std::vector<StomaImagePack::Image> FEDIMAGES) {
+	// takes an array of stoma images and cuts every glyph out into its own
+	// image
 	std::vector<StomaImagePack::Image> OutputImages;
 	StomaImagePack::Image HoldingImage;
 	StomaImagePack::Resolution NewSize;
-	StomaImagePack::Resolution NewOffset;
-	std::string NewName;
-	for(uint32_t i = 0; i < IMG.size(); i++) {
-		if(IMG[i].Glyphs.size() < 2) {
-			if(IMG[i].Glyphs.size() == 0){
-				// IMG[i] is broken
-				exit(8);
-			}
-			// skip as IMG[i] seperation is unnessesary
-			OutputImages.push_back(IMG[i]);
-		} else {
-			for(uint32_t q = 0; q < IMG[i].Glyphs.size(); q++) {
-				NewSize = IMG[i].Glyphs[q].Size;
-				NewOffset = IMG[i].Glyphs[q].Offset;
-				NewName =  IMG[i].Glyphs[q].Name;
-				HoldingImage.Size = NewSize;
-				HoldingImage.Glyphs.resize(1);
-				HoldingImage.Glyphs[0].Name = NewName;
-				HoldingImage.Glyphs[0].Offset.Width = 0;
-				HoldingImage.Glyphs[0].Offset.Height = 0;
-				HoldingImage.Glyphs[0].Size = NewSize;
-				HoldingImage.Pixels.resize(NewSize.Width * NewSize.Height);
-				for(uint32_t h = 0; h < NewSize.Height; h++) {
-				for(uint32_t w = 0; w < NewSize.Width; w++) {
-					HoldingImage.Pixels[GetCoordinate(w, h, NewSize.Width)] =
-						IMG[i].Pixels[GetCoordinate(NewOffset.Width + w,NewOffset.Height + h,IMG[i].Size.Width)];
-				}}
-				OutputImages.push_back(HoldingImage);
+	StomaImagePack::Resolution OldOffset;
+	std::string OldGroupName;
+	std::string OldGlyphName;
+
+	for(uint32_t cimg = 0; cimg < FEDIMAGES.size(); cimg++) {
+		for(uint32_t cgrp = 0; cgrp < FEDIMAGES[cimg].Groups.size(); cgrp++) {
+			if(FEDIMAGES[cimg].Groups[cgrp].Glyphs.size() < 2) {
+				if(FEDIMAGES[cimg].Groups[cgrp].Glyphs.size() == 1) {
+					// skip as IMG[i] seperation is unnessesary
+					OutputImages.push_back(FEDIMAGES[cimg]);
+				} else {
+					// IMG[i] is broken and will be skipped
+				}
+			} else {
+				for(uint32_t cgly = 0;
+					cgly < FEDIMAGES[cimg].Groups[cgrp].Glyphs.size(); cgly++) {
+					NewSize = FEDIMAGES[cimg].Groups[cgrp].Glyphs[cgly].Size;
+					OldOffset =
+						FEDIMAGES[cimg].Groups[cgrp].Glyphs[cgly].Offset;
+					OldGroupName = FEDIMAGES[cimg].Groups[cgrp].Name;
+					OldGlyphName =
+						FEDIMAGES[cimg].Groups[cgrp].Glyphs[cgly].Name;
+
+					HoldingImage.Size = NewSize;
+					HoldingImage.Groups.resize(1);
+					HoldingImage.Groups[0].Name = OldGroupName;
+					HoldingImage.Groups[0].Glyphs.resize(1);
+					HoldingImage.Groups[0].Glyphs[0].Name = OldGlyphName;
+					HoldingImage.Groups[0].Glyphs[0].Offset.Width = 0;
+					HoldingImage.Groups[0].Glyphs[0].Offset.Height = 0;
+					HoldingImage.Groups[0].Glyphs[0].Size = NewSize;
+
+					HoldingImage.Pixels.resize(NewSize.Width * NewSize.Height);
+					// get pixels from old image into new image
+					for(uint32_t h = 0; h < NewSize.Height; h++) {
+						for(uint32_t w = 0; w < NewSize.Width; w++) {
+							HoldingImage
+								.Pixels[GetCoordinate(w, h, NewSize.Width)] =
+								FEDIMAGES[cimg].Pixels[GetCoordinate(
+									OldOffset.Width + w, OldOffset.Height + h,
+									FEDIMAGES[cimg].Size.Width)];
+						}
+					}
+					OutputImages.push_back(HoldingImage);
+				}
 			}
 		}
 	}
 
 	return OutputImages;
 }
-StomaImagePack::Image MergeImages(std::vector<StomaImagePack::Image> SUBIMAGES) {
-	// clang-format off
-	// ---------------------SET_SIZE------------------------------------//
+StomaImagePack::Image
+MergeImages(std::vector<StomaImagePack::Image> SUBIMAGES) {
 	StomaImagePack::Image OutputImage;
-	std::vector<StomaImagePack::Image> OrderedSubImages;
-	OrderedSubImages = ReorderByVolume(SUBIMAGES);
-	std::vector<StomaImagePack::Resolution> ImageResolutions(SUBIMAGES.size());
-	bool DrawSafe;
-	bool DrawDone;
-	uint32_t MPoint;
-	uint32_t SPoint;
-	uint32_t CheckLimitX;
-	uint32_t CheckLimitY;
-	uint32_t CurrentShape = 0;
-	// get total required volume
-	StomaImagePack::Resolution ExpectedSize;
-	ExpectedSize.Width = 0;
-	ExpectedSize.Height = 0;
-	StomaImagePack::Resolution MaxSize;
-	MaxSize.Width = 0;
-	MaxSize.Height = 0;
+	// starts with 0 being regular images and 1 being normalmaps
+	OutputImage.Groups.resize(2); 
+	uint32_t MaxWRequired = 0;
+	uint32_t MaxHRequired = 0;
+	std::vector<StomaImagePack::Colour> Canvas;
+	std::vector<bool> Occupied;
 
-	uint32_t CurrentGlyphs = 0;
-	uint32_t MaxGlyphs = 0;
+	// TODO: Create a better merge algarythm
+	#define MERGEALGORITHM_DUMBDUMPANDTRIM
+	#ifdef MERGEALGORITHM_DUMBDUMPANDTRIM
+	// NOTE: this method results in a ton of wasted space as it creates a strip of images being written
 
-	for(uint32_t i = 0; i < OrderedSubImages.size(); i++) {
-		ImageResolutions[i] = OrderedSubImages[i].Size;
-		MaxSize.Width  += OrderedSubImages[i].Size.Width;
-		MaxSize.Height += OrderedSubImages[i].Size.Height;
-		MaxGlyphs += OrderedSubImages[i].Glyphs.size();
-	}
-	OutputImage.Glyphs.resize(MaxGlyphs);
-	// get base total size for new image
-	// NOTE: new method is more reliant on trimming
-	for (uint32_t i = 0;i<OrderedSubImages.size();i++){
-		ExpectedSize.Width  += OrderedSubImages[i].Size.Width;
-		ExpectedSize.Height += OrderedSubImages[i].Size.Height;
-	}
+	// iterate over all glyphs and get the max x and y required
+	for(uint32_t im = 0; im<SUBIMAGES.size();im++){
+	for(uint32_t gr = 0; gr<SUBIMAGES[im].Groups.size();gr++){
+	for(uint32_t gl = 0; gl<SUBIMAGES[im].Groups[gr].Glyphs.size();gl++){
+		MaxWRequired += SUBIMAGES[im].Groups[gr].Glyphs[gl].Size.Width;
+		MaxHRequired += SUBIMAGES[im].Groups[gr].Glyphs[gl].Size.Height;
+	}}}
+	// create a canvas
 	
-	// NOTE: old method
-	/*
-	for (uint32_t i = 0;i<OrderedSubImages.size();i++){
-		// width
-		ExpectedSize.Width += OrderedSubImages[i].Size.Width;
-		if (ExpectedSize.Width>=(MaxSize.Width - ExpectedSize.Width)){break;}
-	}
-	for (uint32_t i = 0;i<OrderedSubImages.size();i++){
-		// height
-		ExpectedSize.Height += OrderedSubImages[i].Size.Height;
-		if (ExpectedSize.Height>=(MaxSize.Height - ExpectedSize.Height)){break;}		
-	}
-	*/
+
+	uint32_t CanvasSize = MaxWRequired*MaxHRequired;
+	Canvas.resize(CanvasSize);
+	Occupied.resize(CanvasSize);
+	uint32_t CurrentGroup;
 	
-	OutputImage.Size = ExpectedSize;
-	uint32_t hold = ExpectedSize.Width*ExpectedSize.Height;
-	OutputImage.Pixels.resize(hold);
-	std::vector<bool> OccupiedPositions(hold);
-	// ---------------------------DRAWING--------------------------------//
-	
-	// place shapes
-	for(CurrentShape = 0; CurrentShape < OrderedSubImages.size(); CurrentShape++) {
-		DrawDone = false;
-		CheckLimitY = (OutputImage.Size.Height-(OrderedSubImages[CurrentShape].Size.Height-1));
-		CheckLimitX = (OutputImage.Size.Width -(OrderedSubImages[CurrentShape].Size.Width -1));
-		for(uint32_t MYPos = 0; MYPos < CheckLimitY; MYPos++) {
-		for(uint32_t MXPos = 0; MXPos < CheckLimitX; MXPos++) {
-			if (OccupiedPositions[GetCoordinate(MXPos, MYPos, OutputImage.Size.Width)] == false) {
+	bool DrawSafe;		
+	// iterate over canvas every glyph and iterate over every position to find a good placement
+	for (uint32_t im = 0;im < SUBIMAGES.size();im++) {
+	for (uint32_t gr = 0;gr < SUBIMAGES[im].Groups.size();gr++) {
+		// get group type
+		switch (SUBIMAGES[im].Groups[gr].Type) {
+			case(StomaImagePack::GroupType::REGULAR):{
+				// put into new images group 0
+				CurrentGroup = 0;
+				break;
+			}
+			case(StomaImagePack::GroupType::NORMALMAP):{
+				// put normals into group 1
+				CurrentGroup = 1;
+				break;
+			}
+			case(StomaImagePack::GroupType::FONT):{
+				// create a new group
+				CurrentGroup = OutputImage.Groups.size();
+				OutputImage.Groups.resize(CurrentGroup+1);
+				break;
+			}
+			default:{
+				printf("Invalid GroupType on image %i\n",im);
+				exit(122);
+			}
+		}
+	for (uint32_t gl = 0;gl < SUBIMAGES[im].Groups[gr].Glyphs.size();gl++) {
+		// check if its safe to draw in position
+		for(uint32_t MYPos = 0; MYPos < MaxHRequired; MYPos++) {
+		for(uint32_t MXPos = 0; MXPos < MaxWRequired; MXPos++) {
+			// test if first pixel is empty
+			if (Occupied[GetCoordinate(MXPos,MYPos,MaxWRequired)] == false) {
 				DrawSafe = true;
 				// check if position collides with previously written positions
-				for(uint32_t SYPos=0;SYPos<OrderedSubImages[CurrentShape].Size.Height;SYPos++){
-				for(uint32_t SXPos=0;SXPos<OrderedSubImages[CurrentShape].Size.Width ;SXPos++){
-					if(OccupiedPositions[GetCoordinate(MXPos + SXPos,MYPos + SYPos,OutputImage.Size.Width)] == true){
+				for(uint32_t SYPos=0;SYPos<SUBIMAGES[im].Groups[gr].Glyphs[gl].Size.Height;SYPos++){
+				for(uint32_t SXPos=0;SXPos<SUBIMAGES[im].Groups[gr].Glyphs[gl].Size.Width ;SXPos++){
+					if(Occupied[GetCoordinate(MXPos + SXPos,MYPos + SYPos,MaxWRequired)] == true){
 						DrawSafe = false;
 						goto AlreadyWrittenBreakout;
 					}
 				}}
 				AlreadyWrittenBreakout:;
 				if (DrawSafe){
+					uint32_t MPoint,SPoint;
 					// draw
-					for(uint32_t SYPos=0;SYPos<OrderedSubImages[CurrentShape].Size.Height;SYPos++){
-					for(uint32_t SXPos=0;SXPos<OrderedSubImages[CurrentShape].Size.Width ;SXPos++){
-						MPoint = GetCoordinate(MXPos + SXPos,MYPos + SYPos,OutputImage.Size.Width);
-						SPoint = GetCoordinate(SXPos, SYPos, OrderedSubImages[CurrentShape].Size.Width);
-						OutputImage.Pixels[MPoint] = OrderedSubImages[CurrentShape].Pixels[SPoint];
-						OccupiedPositions[MPoint] = true;
+					for(uint32_t SYPos=0;SYPos<SUBIMAGES[im].Groups[gr].Glyphs[gl].Size.Height;SYPos++){
+					for(uint32_t SXPos=0;SXPos<SUBIMAGES[im].Groups[gr].Glyphs[gl].Size.Width ;SXPos++){
+						MPoint = GetCoordinate(MXPos + SXPos,MYPos + SYPos,MaxWRequired);
+						SPoint = GetCoordinate(SXPos, SYPos, SUBIMAGES[im].Groups[gr].Glyphs[gl].Size.Width);
+						Canvas[MPoint] = SUBIMAGES[im].Pixels[SPoint];
+						Occupied[MPoint] = true;
 					}}
-					// place glyphs
-					uint32_t TargetGlyphID = OrderedSubImages[CurrentShape].Glyphs.size();
-					for(uint32_t CurrentGlyphID = 0;CurrentGlyphID < TargetGlyphID;CurrentGlyphID++){
-						OutputImage.Glyphs[CurrentGlyphs+CurrentGlyphID].Name 			= OrderedSubImages[CurrentShape].Glyphs[CurrentGlyphID].Name;
-						OutputImage.Glyphs[CurrentGlyphs+CurrentGlyphID].Offset.Width	= OrderedSubImages[CurrentShape].Glyphs[CurrentGlyphID].Offset.Width +MXPos;
-						OutputImage.Glyphs[CurrentGlyphs+CurrentGlyphID].Offset.Height	= OrderedSubImages[CurrentShape].Glyphs[CurrentGlyphID].Offset.Height+MYPos;
-						OutputImage.Glyphs[CurrentGlyphs+CurrentGlyphID].Size 			= OrderedSubImages[CurrentShape].Glyphs[CurrentGlyphID].Size;
-					}
-					CurrentGlyphs += TargetGlyphID;
-					DrawDone = true;
-					goto DrawDoneBreakout;
+					
+					// place glyph
+					
+					StomaImagePack::Glyph TransposingGlyph = {};
+					TransposingGlyph.Name = SUBIMAGES[im].Groups[gr].Glyphs[gl].Name;
+					TransposingGlyph.Offset.Width	= MXPos;
+					TransposingGlyph.Offset.Height	= MYPos;
+					TransposingGlyph.Size 			= SUBIMAGES[im].Groups[gr].Glyphs[gl].Size;
+								
+					OutputImage.Groups[CurrentGroup].Glyphs.push_back(TransposingGlyph);
+					goto NextGlyph;
 				}
-			}// end of occupied position[offsetw,offseth] check
+			}
 		}}
-		DrawDoneBreakout:;
-		if(DrawDone == false){
-			exit(5);
-			// NOTE: 2 images of the same size causes an exit5
-		}
 	}
+	// endof glyph
+	NextGlyph:;
+	}
+	// endof group
+	}
+	// endof image
+	#endif
+	// clang-format off
 	// ---------------------------TRIM--------------------------------//
 	// Trim unused lines or collumns
-	ExpectedSize = OutputImage.Size;
+	uint32_t CropWSize = MaxWRequired;
+	uint32_t CropHSize = MaxHRequired;
+	
+	//StomaImagePack::Resolution CropSize = OutputImage.Size;
 	// get true used Heigth/Rows
-	while (ExpectedSize.Height > 1) {
-		for(uint32_t w=0;w<ExpectedSize.Width;w++){
-			if (OccupiedPositions[GetCoordinate(w, ExpectedSize.Height-1, OutputImage.Size.Width)]){
+	while (CropHSize > 1) {
+		for(uint32_t w=0;w<CropWSize;w++){
+			if (Occupied[GetCoordinate(w,CropHSize-1, MaxWRequired)]){
 				goto PixelRowOccupiedBreakout;
 			}
 		}
-		ExpectedSize.Height--;
+		CropHSize--;
 	}
 	PixelRowOccupiedBreakout:;
 	// get true used Width/Columns
-	while (ExpectedSize.Width > 1) {
-		for(uint32_t h=0;h<ExpectedSize.Height;h++){
-			if (OccupiedPositions[GetCoordinate(ExpectedSize.Width-1 , h, OutputImage.Size.Width)]){
+	while (CropWSize > 1) {
+		for(uint32_t h=0;h<CropHSize;h++){
+			if (Occupied[GetCoordinate(CropWSize-1 , h, MaxWRequired)]){
 				goto PixelColumnOccupiedBreakout;
 			}
 		}
-		ExpectedSize.Width--;
+		CropHSize--;
 	}
 	PixelColumnOccupiedBreakout:;
 	// check if there are rows or columns to trim
-	if(ExpectedSize.Width  != OutputImage.Size.Width 
-	|| ExpectedSize.Height != OutputImage.Size.Height){
-		StomaImagePack::Image CopyImage = OutputImage;
-		OutputImage.Size = ExpectedSize;
-		OutputImage.Pixels.resize(ExpectedSize.Width*ExpectedSize.Height);
-		for(uint32_t MYPos = 0; MYPos < CheckLimitY; MYPos++) {
-		for(uint32_t MXPos = 0; MXPos < CheckLimitX; MXPos++) {
-			MPoint = GetCoordinate(MXPos,MYPos,OutputImage.Size.Width);
-			SPoint = GetCoordinate(MXPos,MYPos,CopyImage.Size.Width);
-			OutputImage.Pixels[MPoint] = CopyImage.Pixels[SPoint];
+	uint32_t NewPoint,OldPoint;
+	OutputImage.Pixels.resize(CropWSize*CropHSize);
+	if(CropWSize != MaxWRequired 
+	|| CropHSize != MaxHRequired){
+		// transpose canvas pixels onto trimmed output image
+		for(uint32_t YPos = 0; YPos < CropHSize; YPos++) {
+		for(uint32_t XPos = 0; XPos < CropWSize; XPos++) {
+			NewPoint = GetCoordinate(XPos,YPos,CropWSize);
+			OldPoint = GetCoordinate(XPos,YPos,MaxWRequired);
+			OutputImage.Pixels[NewPoint] = Canvas[OldPoint];
 		}}
+		OutputImage.Size = {CropWSize,CropHSize};
+	}else{
+		// space is efficantly used already so just feed canvas to Image
+		for(uint32_t i=0;i<OutputImage.Size.Width*OutputImage.Size.Height;i++){
+			OutputImage.Pixels[i] = Canvas[i];
+		}
 	}
+	
 	return OutputImage;
 	// clang-format on
 }
 float GetRGBColourDistance(StomaImagePack::Colour A, StomaImagePack::Colour B) {
-	return (((((float)A.R - (float)B.R) * ((float)A.R - (float)B.R))+
-			 (((float)A.G - (float)B.G) * ((float)A.G - (float)B.G))+
-			 (((float)A.B - (float)B.B) * ((float)A.B - (float)B.B))) / 2);
+	return (((((float)A.R - (float)B.R) * ((float)A.R - (float)B.R)) +
+			 (((float)A.G - (float)B.G) * ((float)A.G - (float)B.G)) +
+			 (((float)A.B - (float)B.B) * ((float)A.B - (float)B.B))) /
+			2);
 }
-std::vector<StomaImagePack::Colour> ExtractPallet_Image(StomaImagePack::Image IMG) {
+std::vector<StomaImagePack::Colour>
+ExtractPallet_Image(StomaImagePack::Image IMG) {
 	// brute force iterates over fed image
 	uint32_t t_len = IMG.Size.Width * IMG.Size.Height;
 	std::vector<StomaImagePack::Colour> t_ret;
@@ -510,7 +551,8 @@ std::vector<StomaImagePack::Colour> ExtractPallet_Image(StomaImagePack::Image IM
 	}
 	return t_ret;
 }
-void PalletiseImage(StomaImagePack::Image &IMG, std::vector<StomaImagePack::Colour> PAL) {
+void PalletiseImage(StomaImagePack::Image &IMG,
+					std::vector<StomaImagePack::Colour> PAL) {
 	// iterate over every pixel
 	std::vector<float> distances;
 	distances.resize(PAL.size());
@@ -534,7 +576,8 @@ void PalletiseImage(StomaImagePack::Image &IMG, std::vector<StomaImagePack::Colo
 		IMG.Pixels[i].B = PAL[ClosestPalletColour].B;
 	}
 }
-std::vector<StomaImagePack::Image> ReorderByVolume(std::vector<StomaImagePack::Image> UNORDERED) {
+std::vector<StomaImagePack::Image>
+ReorderByVolume(std::vector<StomaImagePack::Image> UNORDERED) {
 	std::vector<uint32_t> volumest(UNORDERED.size());
 	uint32_t hold;
 	// create volumest list
@@ -562,6 +605,3 @@ std::vector<StomaImagePack::Image> ReorderByVolume(std::vector<StomaImagePack::I
 inline uint32_t GetCoordinate(uint32_t XPOS, uint32_t YPOS, uint32_t MAXX) {
 	return (XPOS + (YPOS * MAXX));
 }
-
-
-
