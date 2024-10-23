@@ -284,7 +284,7 @@ StomaImagePack::Image Read_ttf(std::string NAM) {
 			uint32_t w = 0,h = 0;
 			for(uint32_t gl = 0;gl<glyphcount;gl++){
 				// NOTE: assumes fontimage will be 16 glyphs wide
-				if(w>15){w = 0;h++;}
+				if(w > 15){w = 0;h++;}
 				FontGroup.Glyphs[gl].Name = (char)gl+32;
 				FontGroup.Glyphs[gl].Size = {charwidth,charheight};
 				FontGroup.Glyphs[gl].Offset = {w*charwidth,h*charheight};
@@ -294,9 +294,15 @@ StomaImagePack::Image Read_ttf(std::string NAM) {
 		}
 		FontImage.Pixels.resize(charwidth*charheight);
 
-		uint8_t col;
-		for(uint32_t gl = 32;gl<128;gl++){
-			err = FT_Load_Char(typeface,gl,FT_LOAD_RENDER|FT_LOAD_TARGET_(FT_RENDER_MODE_SDF));
+		uint8_t TransposingColour;
+		uint32_t TransposingColourPosition;
+		uint32_t TargetColourPosition;
+		uint32_t CurrentChar;
+		
+		for(uint32_t Target = 0;Target<(128-32);Target++){
+			CurrentChar = Target+32;
+			// BUG: FT_Load_Char causes "realloc(): invalid next size"
+			err = FT_Load_Char(typeface,CurrentChar,FT_LOAD_RENDER|FT_LOAD_TARGET_(FT_RENDER_MODE_SDF));
 			if(err != 0){
 				printf("freetype 'FT_Load_Char' returned error %i\n",err);
 				exit(111);				
@@ -309,8 +315,7 @@ StomaImagePack::Image Read_ttf(std::string NAM) {
 			if((typeface->glyph->bitmap.width * typeface->glyph->bitmap.rows) == 0){
 				printf("width or height is 0 w:%i, h:%i, Skipping glyph %c\n",
 				typeface->glyph->bitmap.width,
-				typeface->glyph->bitmap.rows,
-		   		((char)gl+32));
+				typeface->glyph->bitmap.rows,((char)CurrentChar));
 				goto skipglyph;
 			}
 			if(typeface->glyph->bitmap.buffer == nullptr){
@@ -320,14 +325,20 @@ StomaImagePack::Image Read_ttf(std::string NAM) {
 			
 			for(uint32_t pixh = 0;pixh < typeface->glyph->bitmap.width;pixh++){
 			for(uint32_t pixw = 0;pixw < typeface->glyph->bitmap.rows ;pixw++){
-				col = typeface->glyph->bitmap.buffer[GetCoordinate(
+				TransposingColourPosition = GetCoordinate(
 					typeface->glyph->bitmap_left + pixw,
 					typeface->glyph->bitmap_top + pixh,
-					typeface->glyph->bitmap.rows)];
-				FontImage.Pixels[GetCoordinate(
-					FontGroup.Glyphs[gl].Offset.Width + pixw,
-					FontGroup.Glyphs[gl].Offset.Height + pixh,
-					FontImage.Size.Width)] = {col,col,col,255};
+					typeface->glyph->bitmap.rows);
+				TargetColourPosition = GetCoordinate(
+					FontGroup.Glyphs[Target].Offset.Width + pixw,
+					FontGroup.Glyphs[Target].Offset.Height + pixh,
+					FontImage.Size.Width);
+				TransposingColour = typeface->glyph->bitmap.buffer[TransposingColourPosition];
+				FontImage.Pixels[TargetColourPosition] = {
+					TransposingColour,
+					TransposingColour,
+					TransposingColour,
+					255};
 			}}
 			skipglyph:;
 		}
