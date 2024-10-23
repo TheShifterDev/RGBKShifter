@@ -5,6 +5,11 @@
 
 #include <png++/png.hpp> // local install via pacman
 
+#include <freetype2/ft2build.h>
+#include FT_FREETYPE_H
+
+
+
 // #include <freetype2/ft2build.h>
 
 #include <string>
@@ -164,6 +169,12 @@ int main(int argc, char *argv[]) {
 			} else if(ImageExtension == "stimpac") {
 				TempImage = StomaImagePack::ReadStimpac(ImageName);
 				ImageList.push_back(TempImage);
+			} else if(ImageExtension == "ttf"){
+				TempImage = Read_ttf(ImageName);
+				ImageList.push_back(TempImage);
+			} else{
+				printf("format %s is not valid",ImageExtension.c_str());
+				exit(111);
 			}
 		}
 	}
@@ -227,10 +238,100 @@ void WriteOut(StomaImagePack::Image IMG, std::string NAM) {
 		StomaImagePack::WriteStimpac(IMG, NAM);
 	}
 }
-
 StomaImagePack::Image Read_ttf(std::string NAM) {
+	// NOTE: based on https://nikramakrishnan.github.io/freetype-web-jekyll/docs/tutorial/step1.html
+	// and https://github.com/tsoding/ded
 	StomaImagePack::Image ReturnImage;
+	// TODO: add stuff here
+	// prepare font texture
+	{
+		uint32_t charwidth,charheight;
+		charwidth = 64;
+		charheight = 64;
+		//use freetype to generate a texture from font file
+		// NOTE: NotoSans is a temporary font 
+		FT_Library fontlibrary;
+		FT_Error err;
+		FT_Face typeface;
+		err = FT_Init_FreeType(&fontlibrary);
+		if(err != 0){
+			printf("freetype 'FT_Init_FreeType' returned error %i\n",err);
+			exit(111);				
+		}
+		std::string loc = NAM + ".ttf";
+		err = FT_New_Face(fontlibrary,loc.c_str(),0,&typeface);
+		if(err != 0){
+			printf("freetype 'FT_New_Face' returned error %i\n",err);
+			exit(111);				
+		}
+		// each glyph will be 64 size
+		err = FT_Set_Pixel_Sizes(typeface,charwidth,charheight);
+		if(err != 0){
+			printf("freetype 'FT_Set_Pixel_Sizes' returned error %i\n",err);
+			exit(111);				
+		}
+		// HACK: currently only gets chars within char range 
+		uint32_t glyphcount = 128-32;
+		//std::vector<StomaImagePack::Colour> FontTextureData;
+		//FontTextureData.resize(64*64*glyphcount);
+		StomaImagePack::Image FontImage;
+		FontImage.Groups.resize((uint32_t)StomaImagePack::GroupType::ENDOF);
+		StomaImagePack::GlyphGroup& FontGroup = FontImage.Groups[(uint32_t)StomaImagePack::GroupType::FONT];
+		FontGroup.Name = NAM;
+		FontGroup.Type = StomaImagePack::GroupType::FONT;
+		FontGroup.Glyphs.resize(glyphcount);
+		{
+			uint32_t w = 0,h = 0;
+			for(uint32_t gl = 0;gl<glyphcount;gl++){
+				// NOTE: assumes fontimage will be 16 glyphs wide
+				if(w>15){w = 0;h++;}
+				FontGroup.Glyphs[gl].Name = (char)gl+32;
+				FontGroup.Glyphs[gl].Size = {charwidth,charheight};
+				FontGroup.Glyphs[gl].Offset = {w*charwidth,h*charheight};
+				w++;
+			}
+			FontImage.Size = {charwidth*16,charheight*(h+1)};
+		}
+		FontImage.Pixels.resize(charwidth*charheight);
 
+		uint8_t col;
+		for(uint32_t gl = 32;gl<128;gl++){
+			err = FT_Load_Char(typeface,gl,FT_LOAD_RENDER|FT_LOAD_TARGET_(FT_RENDER_MODE_SDF));
+			if(err != 0){
+				printf("freetype 'FT_Load_Char' returned error %i\n",err);
+				exit(111);				
+			}
+			err = FT_Render_Glyph(typeface->glyph,FT_RENDER_MODE_NORMAL);
+			if(err != 0){
+				printf("freetype 'FT_Render_Glyph' returned error %i\n",err);
+				exit(111);				
+			}
+			if((typeface->glyph->bitmap.width * typeface->glyph->bitmap.rows) == 0){
+				printf("width or height is 0 w:%i, h:%i, Skipping glyph %c\n",
+				typeface->glyph->bitmap.width,
+				typeface->glyph->bitmap.rows,
+		   		((char)gl+32));
+				goto skipglyph;
+			}
+			if(typeface->glyph->bitmap.buffer == nullptr){
+				printf("returned charbuffer is nullptr");
+				exit(111);
+			}
+			
+			for(uint32_t pixh = 0;pixh < typeface->glyph->bitmap.width;pixh++){
+			for(uint32_t pixw = 0;pixw < typeface->glyph->bitmap.rows ;pixw++){
+				col = typeface->glyph->bitmap.buffer[GetCoordinate(
+					typeface->glyph->bitmap_left + pixw,
+					typeface->glyph->bitmap_top + pixh,
+					typeface->glyph->bitmap.rows)];
+				FontImage.Pixels[GetCoordinate(
+					FontGroup.Glyphs[gl].Offset.Width + pixw,
+					FontGroup.Glyphs[gl].Offset.Height + pixh,
+					FontImage.Size.Width)] = {col,col,col,255};
+			}}
+			skipglyph:;
+		}
+	}
 	return ReturnImage;
 }
 StomaImagePack::Image Read_png(std::string NAM) {

@@ -15,6 +15,7 @@
 # Credits 
 * "Maber" for the "amber glow" pallet used in testing https://lospec.com/palette-list/amber-glow-5
 * "Polyducks" for the "japanese woodblock" pallet used in testing https://lospec.com/palette-list/japanese-woodblock
+* "be5invis" and other contributors for the font used in testing https://github.com/be5invis/Iosevka/releases
 # Notes
 ## TODO
 * add freetype ttf reading
