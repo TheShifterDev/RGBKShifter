@@ -241,6 +241,7 @@ void WriteOut(StomaImagePack::Image IMG, std::string NAM) {
 StomaImagePack::Image Read_ttf(std::string NAM) {
 	// NOTE: based on https://nikramakrishnan.github.io/freetype-web-jekyll/docs/tutorial/step1.html
 	// and https://github.com/tsoding/ded
+	// NOTE: even though we request a desired size freetype can just ignore it and return an oversized glyph
 	StomaImagePack::Image ReturnImage;
 	// prepare font texture
 	uint32_t DesiredWidth = 64;
@@ -257,6 +258,9 @@ StomaImagePack::Image Read_ttf(std::string NAM) {
 	uint32_t TargetColourPosition;
 	uint32_t CurrentChar;
 
+	uint32_t RequiredWidth = 0;
+	uint32_t RequiredHeight = 0;
+
 	err = FT_Init_FreeType(&FontLibrary);
 	if(err != 0){
 		printf("freetype 'FT_Init_FreeType' returned error %i\n",err);
@@ -271,11 +275,28 @@ StomaImagePack::Image Read_ttf(std::string NAM) {
 	// --- prepare fontgroup
 	ReturnImage.Groups.resize(1);
 	ReturnImage.Size = {DesiredGlyphCount*DesiredWidth,DesiredHeight};
-	ReturnImage.Pixels.resize((DesiredGlyphCount*DesiredWidth)*DesiredHeight);
 	ReturnImage.Groups[0].Name = NAM;
 	ReturnImage.Groups[0].Type = StomaImagePack::GroupType::FONT;
 	ReturnImage.Groups[0].Glyphs.resize(DesiredGlyphCount);
-	
+	// iterate to get size data for the glyphs to construct pixel buffer and glyphdata
+
+	for(uint32_t gl = 0;gl<DesiredGlyphCount;gl++){
+		CurrentChar = gl+32;
+		err = FT_Load_Char(TypeFace,CurrentChar,FT_LOAD_RENDER|FT_LOAD_TARGET_(FT_RENDER_MODE_SDF));
+		if(err != 0){printf("freetype 'FT_Load_Char' returned error %i\n",err);exit(111);}
+		err = FT_Render_Glyph(TypeFace->glyph,FT_RENDER_MODE_NORMAL);
+		if(err != 0){printf("freetype 'FT_Render_Glyph' returned error %i\n",err);exit(111);}
+		// --- put bitmap info data into glyph
+		ReturnImage.Groups[0].Glyphs[gl].Name = (char)gl+32;
+		ReturnImage.Groups[0].Glyphs[gl].Offset = {RequiredWidth,0};
+		ReturnImage.Groups[0].Glyphs[gl].Size = {TypeFace->glyph->bitmap.width,TypeFace->glyph->bitmap.rows};
+		// --- increase required width and height
+		RequiredWidth += TypeFace->glyph->bitmap.width;
+		if(RequiredHeight < TypeFace->glyph->bitmap.rows){RequiredHeight = TypeFace->glyph->bitmap.rows;}
+	}
+	// --- produce the pixel buffer
+	ReturnImage.Pixels.resize(RequiredWidth*RequiredHeight);
+	// --- iterate for pixel transposing
 	for(uint32_t gl = 0;gl<DesiredGlyphCount;gl++){
 		CurrentChar = gl+32;
 		// --- have freetype draw char to bitmap buffer
@@ -283,44 +304,30 @@ StomaImagePack::Image Read_ttf(std::string NAM) {
 		if(err != 0){printf("freetype 'FT_Load_Char' returned error %i\n",err);exit(111);}
 		err = FT_Render_Glyph(TypeFace->glyph,FT_RENDER_MODE_NORMAL);
 		if(err != 0){printf("freetype 'FT_Render_Glyph' returned error %i\n",err);exit(111);}
-		if((TypeFace->glyph->bitmap.width * TypeFace->glyph->bitmap.rows) == 0){
-			printf("width or height is 0 w:%i, h:%i, Skipping glyph %c\n",
-			TypeFace->glyph->bitmap.width,
-			TypeFace->glyph->bitmap.rows,((char)CurrentChar));
-			goto skipglyph;
+		if((TypeFace->glyph->bitmap.width*TypeFace->glyph->bitmap.rows) > 0){
+			// --- sanity check that the buffer exists
+			if(TypeFace->glyph->bitmap.buffer == nullptr){printf("returned charbuffer is nullptr");exit(111);}
+			// --- put bitmap buffer data into colour buffer in glyphs position
+			for(uint32_t pixh = 0;pixh < TypeFace->glyph->bitmap.width;pixh++){
+			for(uint32_t pixw = 0;pixw < TypeFace->glyph->bitmap.rows ;pixw++){
+				TransposingColourPosition = GetCoordinate(
+					pixw,
+					pixh,
+					TypeFace->glyph->bitmap.rows);
+				TargetColourPosition = GetCoordinate(
+					ReturnImage.Groups[0].Glyphs[gl].Offset.Width + pixw,
+					ReturnImage.Groups[0].Glyphs[gl].Offset.Height + pixh,
+					ReturnImage.Size.Width);
+				TransposingColour = TypeFace->glyph->bitmap.buffer[TransposingColourPosition];
+				ReturnImage.Pixels[TargetColourPosition] = {
+					TransposingColour,
+					TransposingColour,
+					TransposingColour,
+					255};
+			}}
 		}
-		if(TypeFace->glyph->bitmap.buffer == nullptr){
-			printf("returned charbuffer is nullptr");
-			exit(111);
-		}
-		// --- put bitmap info data into glyph
-		ReturnImage.Groups[0].Glyphs[gl].Name = (char)gl+32;
-		ReturnImage.Groups[0].Glyphs[gl].Offset = {gl*DesiredWidth,0};
-		ReturnImage.Groups[0].Glyphs[gl].Size = {
-			TypeFace->glyph->bitmap.width,
-			TypeFace->glyph->bitmap.rows
-		};
-		// --- put bitmap buffer data into colour buffer in glyphs position
-		for(uint32_t pixh = 0;pixh < TypeFace->glyph->bitmap.width;pixh++){
-		for(uint32_t pixw = 0;pixw < TypeFace->glyph->bitmap.rows ;pixw++){
-			TransposingColourPosition = GetCoordinate(
-				pixw,
-				pixh,
-				TypeFace->glyph->bitmap.rows);
-			TargetColourPosition = GetCoordinate(
-				ReturnImage.Groups[0].Glyphs[gl].Offset.Width + pixw,
-				ReturnImage.Groups[0].Glyphs[gl].Offset.Height + pixh,
-				ReturnImage.Size.Width);
-			TransposingColour = TypeFace->glyph->bitmap.buffer[TransposingColourPosition];
-			ReturnImage.Pixels[TargetColourPosition] = {
-				TransposingColour,
-				TransposingColour,
-				TransposingColour,
-				255};
-			
-		}}
-		skipglyph:;
 	}
+	
 	return ReturnImage;
 }
 StomaImagePack::Image Read_png(std::string NAM) {
@@ -435,10 +442,10 @@ std::vector<StomaImagePack::Image> SeperateGlyphs(std::vector<StomaImagePack::Im
 			HoldingImage.Pixels.resize(NewPixelCount);
 			// get pixels from old image into new image
 			if((OldOffset.Width+NewSize.Width)		> FEDIMAGES[img].Size.Width){
-				printf("Image[%i].Group[%i].Glyph[%i]'s offset+size width is greater than the width of the image\n",img,grp,gly);exit(1212);
+				printf("Image[%i].Group[%i].Glyph[%i]'s offset+size width is greater than the width of the image, off:%i + size:%i > width:%i\n",img,grp,gly,OldOffset.Width,NewSize.Width,FEDIMAGES[img].Size.Width);exit(1212);
 			}
 			if((OldOffset.Height+NewSize.Height)	> FEDIMAGES[img].Size.Height){
-				printf("Image[%i].Group[%i].Glyph[%i]'s offset+size height is greater than the height of the image\n",img,grp,gly);exit(1212);
+				printf("Image[%i].Group[%i].Glyph[%i]'s offset+size height is greater than the height of the image, off:%i + size:%i > height:%i\n",img,grp,gly,OldOffset.Height,NewSize.Height,FEDIMAGES[img].Size.Height);exit(1212);
 			}
 			for(uint32_t h = 0; h < NewSize.Height; h++) {
 			for(uint32_t w = 0; w < NewSize.Width; w++) {
