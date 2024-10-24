@@ -242,106 +242,84 @@ StomaImagePack::Image Read_ttf(std::string NAM) {
 	// NOTE: based on https://nikramakrishnan.github.io/freetype-web-jekyll/docs/tutorial/step1.html
 	// and https://github.com/tsoding/ded
 	StomaImagePack::Image ReturnImage;
-	// TODO: add stuff here
 	// prepare font texture
-	{
-		uint32_t charwidth,charheight;
-		charwidth = 64;
-		charheight = 64;
-		//use freetype to generate a texture from font file
-		// NOTE: NotoSans is a temporary font 
-		FT_Library fontlibrary;
-		FT_Error err;
-		FT_Face typeface;
-		err = FT_Init_FreeType(&fontlibrary);
-		if(err != 0){
-			printf("freetype 'FT_Init_FreeType' returned error %i\n",err);
-			exit(111);				
-		}
-		std::string loc = NAM + ".ttf";
-		err = FT_New_Face(fontlibrary,loc.c_str(),0,&typeface);
-		if(err != 0){
-			printf("freetype 'FT_New_Face' returned error %i\n",err);
-			exit(111);				
-		}
-		// each glyph will be 64 size
-		err = FT_Set_Pixel_Sizes(typeface,charwidth,charheight);
-		if(err != 0){
-			printf("freetype 'FT_Set_Pixel_Sizes' returned error %i\n",err);
-			exit(111);				
-		}
-		// HACK: currently only gets chars within char range 
-		uint32_t glyphcount = 128-32;
-		//std::vector<StomaImagePack::Colour> FontTextureData;
-		//FontTextureData.resize(64*64*glyphcount);
-		StomaImagePack::Image FontImage;
-		FontImage.Groups.resize((uint32_t)StomaImagePack::GroupType::ENDOF);
-		StomaImagePack::GlyphGroup& FontGroup = FontImage.Groups[(uint32_t)StomaImagePack::GroupType::FONT];
-		FontGroup.Name = NAM;
-		FontGroup.Type = StomaImagePack::GroupType::FONT;
-		FontGroup.Glyphs.resize(glyphcount);
-		{
-			uint32_t w = 0,h = 0;
-			for(uint32_t gl = 0;gl<glyphcount;gl++){
-				// NOTE: assumes fontimage will be 16 glyphs wide
-				if(w > 15){w = 0;h++;}
-				FontGroup.Glyphs[gl].Name = (char)gl+32;
-				FontGroup.Glyphs[gl].Size = {charwidth,charheight};
-				FontGroup.Glyphs[gl].Offset = {w*charwidth,h*charheight};
-				w++;
-			}
-			FontImage.Size = {charwidth*16,charheight*(h+1)};
-		}
-		FontImage.Pixels.resize(charwidth*charheight);
+	uint32_t DesiredWidth = 64;
+	uint32_t DesiredHeight = 64;
+	
+	// HACK: currently only gets chars within char range 
+	uint32_t DesiredGlyphCount = 128-32;
+	FT_Library FontLibrary;
+	FT_Error err;
+	FT_Face TypeFace;
 
-		uint8_t TransposingColour;
-		uint32_t TransposingColourPosition;
-		uint32_t TargetColourPosition;
-		uint32_t CurrentChar;
-		
-		for(uint32_t Target = 0;Target<(128-32);Target++){
-			CurrentChar = Target+32;
-			// BUG: FT_Load_Char causes "realloc(): invalid next size"
-			err = FT_Load_Char(typeface,CurrentChar,FT_LOAD_RENDER|FT_LOAD_TARGET_(FT_RENDER_MODE_SDF));
-			if(err != 0){
-				printf("freetype 'FT_Load_Char' returned error %i\n",err);
-				exit(111);				
-			}
-			err = FT_Render_Glyph(typeface->glyph,FT_RENDER_MODE_NORMAL);
-			if(err != 0){
-				printf("freetype 'FT_Render_Glyph' returned error %i\n",err);
-				exit(111);				
-			}
-			if((typeface->glyph->bitmap.width * typeface->glyph->bitmap.rows) == 0){
-				printf("width or height is 0 w:%i, h:%i, Skipping glyph %c\n",
-				typeface->glyph->bitmap.width,
-				typeface->glyph->bitmap.rows,((char)CurrentChar));
-				goto skipglyph;
-			}
-			if(typeface->glyph->bitmap.buffer == nullptr){
-				printf("returned charbuffer is nullptr");
-				exit(111);
-			}
-			
-			for(uint32_t pixh = 0;pixh < typeface->glyph->bitmap.width;pixh++){
-			for(uint32_t pixw = 0;pixw < typeface->glyph->bitmap.rows ;pixw++){
-				TransposingColourPosition = GetCoordinate(
-					typeface->glyph->bitmap_left + pixw,
-					typeface->glyph->bitmap_top + pixh,
-					typeface->glyph->bitmap.rows);
-				TargetColourPosition = GetCoordinate(
-					FontGroup.Glyphs[Target].Offset.Width + pixw,
-					FontGroup.Glyphs[Target].Offset.Height + pixh,
-					FontImage.Size.Width);
-				TransposingColour = typeface->glyph->bitmap.buffer[TransposingColourPosition];
-				FontImage.Pixels[TargetColourPosition] = {
-					TransposingColour,
-					TransposingColour,
-					TransposingColour,
-					255};
-			}}
-			skipglyph:;
+	uint8_t TransposingColour;
+	uint32_t TransposingColourPosition;
+	uint32_t TargetColourPosition;
+	uint32_t CurrentChar;
+
+	err = FT_Init_FreeType(&FontLibrary);
+	if(err != 0){
+		printf("freetype 'FT_Init_FreeType' returned error %i\n",err);
+		exit(111);				
+	}
+	std::string loc = NAM + ".ttf";
+	// --- load in fonts as desired size
+	err = FT_New_Face(FontLibrary,loc.c_str(),0,&TypeFace);
+	if(err != 0){printf("freetype 'FT_New_Face' returned error %i\n",err);exit(111);}
+	err = FT_Set_Pixel_Sizes(TypeFace,DesiredWidth,DesiredHeight);
+	if(err != 0){printf("freetype 'FT_Set_Pixel_Sizes' returned error %i\n",err);exit(111);				}
+	// --- prepare fontgroup
+	ReturnImage.Groups.resize(1);
+	ReturnImage.Size = {DesiredGlyphCount*DesiredWidth,DesiredHeight};
+	ReturnImage.Pixels.resize((DesiredGlyphCount*DesiredWidth)*DesiredHeight);
+	ReturnImage.Groups[0].Name = NAM;
+	ReturnImage.Groups[0].Type = StomaImagePack::GroupType::FONT;
+	ReturnImage.Groups[0].Glyphs.resize(DesiredGlyphCount);
+	
+	for(uint32_t gl = 0;gl<DesiredGlyphCount;gl++){
+		CurrentChar = gl+32;
+		// --- have freetype draw char to bitmap buffer
+		err = FT_Load_Char(TypeFace,CurrentChar,FT_LOAD_RENDER|FT_LOAD_TARGET_(FT_RENDER_MODE_SDF));
+		if(err != 0){printf("freetype 'FT_Load_Char' returned error %i\n",err);exit(111);}
+		err = FT_Render_Glyph(TypeFace->glyph,FT_RENDER_MODE_NORMAL);
+		if(err != 0){printf("freetype 'FT_Render_Glyph' returned error %i\n",err);exit(111);}
+		if((TypeFace->glyph->bitmap.width * TypeFace->glyph->bitmap.rows) == 0){
+			printf("width or height is 0 w:%i, h:%i, Skipping glyph %c\n",
+			TypeFace->glyph->bitmap.width,
+			TypeFace->glyph->bitmap.rows,((char)CurrentChar));
+			goto skipglyph;
 		}
+		if(TypeFace->glyph->bitmap.buffer == nullptr){
+			printf("returned charbuffer is nullptr");
+			exit(111);
+		}
+		// --- put bitmap info data into glyph
+		ReturnImage.Groups[0].Glyphs[gl].Name = (char)gl+32;
+		ReturnImage.Groups[0].Glyphs[gl].Offset = {gl*DesiredWidth,0};
+		ReturnImage.Groups[0].Glyphs[gl].Size = {
+			TypeFace->glyph->bitmap.width,
+			TypeFace->glyph->bitmap.rows
+		};
+		// --- put bitmap buffer data into colour buffer in glyphs position
+		for(uint32_t pixh = 0;pixh < TypeFace->glyph->bitmap.width;pixh++){
+		for(uint32_t pixw = 0;pixw < TypeFace->glyph->bitmap.rows ;pixw++){
+			TransposingColourPosition = GetCoordinate(
+				pixw,
+				pixh,
+				TypeFace->glyph->bitmap.rows);
+			TargetColourPosition = GetCoordinate(
+				ReturnImage.Groups[0].Glyphs[gl].Offset.Width + pixw,
+				ReturnImage.Groups[0].Glyphs[gl].Offset.Height + pixh,
+				ReturnImage.Size.Width);
+			TransposingColour = TypeFace->glyph->bitmap.buffer[TransposingColourPosition];
+			ReturnImage.Pixels[TargetColourPosition] = {
+				TransposingColour,
+				TransposingColour,
+				TransposingColour,
+				255};
+			
+		}}
+		skipglyph:;
 	}
 	return ReturnImage;
 }
@@ -422,64 +400,69 @@ std::string LowerCaseify(std::string INP) {
 	return INP;
 }
 
-std::vector<StomaImagePack::Image>
-SeperateGlyphs(std::vector<StomaImagePack::Image> FEDIMAGES) {
-	// takes an array of stoma images and cuts every glyph out into its own
-	// image
+// clang-format off
+std::vector<StomaImagePack::Image> SeperateGlyphs(std::vector<StomaImagePack::Image> FEDIMAGES) {
+	// takes an array of stoma images and cuts every glyph out into its own image
 	std::vector<StomaImagePack::Image> OutputImages;
 	StomaImagePack::Image HoldingImage;
 	StomaImagePack::Resolution NewSize;
 	StomaImagePack::Resolution OldOffset;
 	std::string OldGroupName;
 	std::string OldGlyphName;
+	uint32_t HoldPixelPosition;
+	uint32_t FedPixelPosition;
+	uint32_t NewPixelCount;
+	uint32_t OldPixelCount;
 
-	for(uint32_t cimg = 0; cimg < FEDIMAGES.size(); cimg++) {
-		for(uint32_t cgrp = 0; cgrp < FEDIMAGES[cimg].Groups.size(); cgrp++) {
-			if(FEDIMAGES[cimg].Groups[cgrp].Glyphs.size() < 2) {
-				if(FEDIMAGES[cimg].Groups[cgrp].Glyphs.size() == 1) {
-					// skip as IMG[i] seperation is unnessesary
-					OutputImages.push_back(FEDIMAGES[cimg]);
-				} else {
-					// IMG[i] is broken and will be skipped
-				}
-			} else {
-				for(uint32_t cgly = 0;
-					cgly < FEDIMAGES[cimg].Groups[cgrp].Glyphs.size(); cgly++) {
-					NewSize = FEDIMAGES[cimg].Groups[cgrp].Glyphs[cgly].Size;
-					OldOffset =
-						FEDIMAGES[cimg].Groups[cgrp].Glyphs[cgly].Offset;
-					OldGroupName = FEDIMAGES[cimg].Groups[cgrp].Name;
-					OldGlyphName =
-						FEDIMAGES[cimg].Groups[cgrp].Glyphs[cgly].Name;
-
-					HoldingImage.Size = NewSize;
-					HoldingImage.Groups.resize(1);
-					HoldingImage.Groups[0].Name = OldGroupName;
-					HoldingImage.Groups[0].Glyphs.resize(1);
-					HoldingImage.Groups[0].Glyphs[0].Name = OldGlyphName;
-					HoldingImage.Groups[0].Glyphs[0].Offset.Width = 0;
-					HoldingImage.Groups[0].Glyphs[0].Offset.Height = 0;
-					HoldingImage.Groups[0].Glyphs[0].Size = NewSize;
-
-					HoldingImage.Pixels.resize(NewSize.Width * NewSize.Height);
-					// get pixels from old image into new image
-					for(uint32_t h = 0; h < NewSize.Height; h++) {
-						for(uint32_t w = 0; w < NewSize.Width; w++) {
-							HoldingImage
-								.Pixels[GetCoordinate(w, h, NewSize.Width)] =
-								FEDIMAGES[cimg].Pixels[GetCoordinate(
-									OldOffset.Width + w, OldOffset.Height + h,
-									FEDIMAGES[cimg].Size.Width)];
-						}
-					}
-					OutputImages.push_back(HoldingImage);
-				}
+	for(uint32_t img = 0; img < FEDIMAGES.size(); img++) {
+		OldPixelCount = FEDIMAGES[img].Pixels.size();
+	for(uint32_t grp = 0; grp < FEDIMAGES[img].Groups.size(); grp++) {
+	for(uint32_t gly = 0; gly < FEDIMAGES[img].Groups[grp].Glyphs.size(); gly++) {
+		NewSize = FEDIMAGES[img].Groups[grp].Glyphs[gly].Size;
+		OldOffset = FEDIMAGES[img].Groups[grp].Glyphs[gly].Offset;
+		OldGroupName = FEDIMAGES[img].Groups[grp].Name;
+		OldGlyphName = FEDIMAGES[img].Groups[grp].Glyphs[gly].Name;
+		NewPixelCount = (NewSize.Width * NewSize.Height);
+		if (NewPixelCount != 0){
+			HoldingImage.Size = NewSize;
+			HoldingImage.Groups.resize(1);
+			HoldingImage.Groups[0].Name = OldGroupName;
+			HoldingImage.Groups[0].Glyphs.resize(1);
+			HoldingImage.Groups[0].Glyphs[0].Name = OldGlyphName;
+			HoldingImage.Groups[0].Glyphs[0].Offset.Width = 0;
+			HoldingImage.Groups[0].Glyphs[0].Offset.Height = 0;
+			HoldingImage.Groups[0].Glyphs[0].Size = NewSize;
+			HoldingImage.Pixels.resize(NewPixelCount);
+			// get pixels from old image into new image
+			if((OldOffset.Width+NewSize.Width)		> FEDIMAGES[img].Size.Width){
+				printf("Image[%i].Group[%i].Glyph[%i]'s offset+size width is greater than the width of the image\n",img,grp,gly);exit(1212);
 			}
+			if((OldOffset.Height+NewSize.Height)	> FEDIMAGES[img].Size.Height){
+				printf("Image[%i].Group[%i].Glyph[%i]'s offset+size height is greater than the height of the image\n",img,grp,gly);exit(1212);
+			}
+			for(uint32_t h = 0; h < NewSize.Height; h++) {
+			for(uint32_t w = 0; w < NewSize.Width; w++) {
+				HoldPixelPosition = GetCoordinate(w, h, NewSize.Width);
+				FedPixelPosition = 	GetCoordinate(
+					OldOffset.Width + w,
+					OldOffset.Height + h,
+					FEDIMAGES[img].Size.Width);
+				if(HoldPixelPosition > NewPixelCount){
+					printf("new image is too small to take data from Image[%i].Group[%i].Glyph[%i]\n",img,grp,gly);exit(1212);
+				}
+				if(FedPixelPosition > OldPixelCount){
+					printf("old image is too small for Image[%i].Group[%i].Glyph[%i]'s data to be valid\n",img,grp,gly);exit(1212);
+				}
+				HoldingImage.Pixels[HoldPixelPosition] = FEDIMAGES[img].Pixels[FedPixelPosition];
+			}}
+			OutputImages.push_back(HoldingImage);
 		}
-	}
+	}}}
 
 	return OutputImages;
 }
+// clang-format on
+
 StomaImagePack::Image
 MergeImages(std::vector<StomaImagePack::Image> SUBIMAGES) {
 	StomaImagePack::Image OutputImage;
