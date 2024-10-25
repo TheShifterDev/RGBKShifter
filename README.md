@@ -18,9 +18,14 @@
 * "be5invis" and other contributors for the font used in testing https://github.com/be5invis/Iosevka/releases
 # Notes
 ## TODO
-* add freetype ttf reading
+* add way to request grouptype for read file
+* fix stimpac not having source name from read files
+* add working freetype ttf reading
 * prevent creation of stimpac's if no files were fed
-* look into using gd to support more formats
 * look into creating "sequences" for gifs/animations/variants/bumpmaps
-* create a way to use wildcards '*' in file input
 * make cross platform
+## DONE
+* add more alias' for commands
+* simplified internals to process on read
+* allow for some files to be palleted with one file and others with another
+* simplify "launch" to serve as usage examples
