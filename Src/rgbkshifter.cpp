@@ -1,18 +1,57 @@
 
 #include <StomaImagePack/StomaImagePack.hh>
+#include <cstdio>
 #define STOMAIMAGEPACK_IMPLEM
 #include <StomaImagePack/StomaImagePack.hh>
 
+#ifdef USING_PNGPP
 #include <png++/png.hpp> // local install via pacman
+#elif USING_LIBPNG
+#include <libpng16/png.h>
+// ALIASES
+#define PNG_COLOR_TYPE_GREY PNG_COLOR_TYPE_GRAY
+#define PNG_COLOUR_TYPE_GREY PNG_COLOR_TYPE_GRAY
+#define PNG_COLOUR_TYPE_GRAY PNG_COLOR_TYPE_GRAY
+
+#define PNG_COLOR_TYPE_GREY_ALPHA PNG_COLOR_TYPE_GRAY_ALPHA
+#define PNG_COLOUR_TYPE_GREY_ALPHA PNG_COLOR_TYPE_GRAY_ALPHA
+#define PNG_COLOUR_TYPE_GRAY_ALPHA PNG_COLOR_TYPE_GRAY_ALPHA
+
+#define PNG_COLOUR_TYPE_RGB PNG_COLOR_TYPE_RGB
+#define PNG_COLOUR_TYPE_RGBA PNG_COLOR_TYPE_RGBA
+#define PNG_COLOUR_TYPE_PALETTE PNG_COLOR_TYPE_PALETTE
+
+inline void png_set_grey_to_rgb(png_structp A){png_set_gray_to_rgb(A);}
+#else
+// fallback handcoded png reading
+
+
+#endif
 
 #include <freetype2/ft2build.h>
 #include FT_FREETYPE_H
 
 
-
-// #include <freetype2/ft2build.h>
-
 #include <string>
+
+
+enum ExitCode{
+	NOERROR = 0,
+	NOARGS,
+	INVALIDOUTPUTFILEFORMAT,
+	FREETYPEERROREXIT,
+
+	LIBPNGREADERROREXIT,
+	LIBPNGWRITEERROREXIT,
+
+	CUSTOMPNGREADERROREXIT,
+	CUSTOMPNGWRITEERROREXIT,
+
+	STOMAIMAGEERROREXIT,
+
+	ENDOF
+};
+
 
 enum class ColourCommands{
 	ASIS,// does nothing to file on read
@@ -60,8 +99,6 @@ ExtractPallet_Image(StomaImagePack::Image IMG);
 ColourCommands ChangeReadFileColour = ColourCommands::ASIS; 
 FileType OutFileType = FileType::PNG;	
 bool OutputAtlas = true;
-//bool CommandList[(uint8_t)CommandEnum::ENDOF] = {};
-
 
 std::string OutputName = "rgbkshifted"; // used in -n/--name
 std::string OutputDirectory = "";		 // used in -o/--out
@@ -103,7 +140,7 @@ int main(int argc, char *argv[]) {
 	int t_i = 1;
 	if(argc == 1) {
 		printf("No args input.\nUse -h or --help for help.\n");
-		exit(1);
+		exit((uint32_t)ExitCode::NOARGS);
 	}
 	while(t_i < argc) {
 		hold = argv[t_i];
@@ -112,7 +149,7 @@ int main(int argc, char *argv[]) {
 			if(hold == "-h" || hold == "--help") {
 				// help request
 				printf("%s\n", HelpText.c_str());
-				exit(0);
+				exit((ExitCode::NOERROR));
 			} else if(hold == "-n" || hold == "--name") {
 				// output prefix
 				OutputName = argv[t_i + 1];
@@ -174,7 +211,7 @@ int main(int argc, char *argv[]) {
 				goto skippalet;
 			} else{
 				printf("format %s is not valid",ImageExtension.c_str());
-				exit(111);
+				exit(ExitCode::INVALIDOUTPUTFILEFORMAT);
 			}
 			//
 			switch (ChangeReadFileColour) {
@@ -210,184 +247,6 @@ int main(int argc, char *argv[]) {
 		// TODO: dinit freetype here
 	}
 	return 0;
-}
-
-void WriteOut(StomaImagePack::Image IMG, std::string NAM) {
-	if(OutFileType == FileType::PNG) {
-		Write_png(IMG, NAM);
-	} else {
-		StomaImagePack::WriteStimpac(IMG, NAM);
-	}
-}
-StomaImagePack::Image Read_ttf(std::string NAM) {
-	// NOTE: based on https://nikramakrishnan.github.io/freetype-web-jekyll/docs/tutorial/step1.html
-	// and https://github.com/tsoding/ded
-	// NOTE: even though we request a desired size freetype can just ignore it and return an oversized glyph
-	StomaImagePack::Image ReturnImage;
-	// prepare font texture
-	uint32_t DesiredWidth = 64;
-	uint32_t DesiredHeight = 64;
-	
-	// HACK: currently only gets chars within char range 
-	uint32_t DesiredGlyphCount = 128-32;
-	
-	FT_Face TypeFace;
-	FT_Error err;
-
-	uint8_t TransposingColour;
-	uint32_t TransposingColourPosition;
-	uint32_t TargetColourPosition;
-	uint32_t CurrentChar;
-
-	uint32_t RequiredWidth = 0;
-	uint32_t RequiredHeight = 0;
-	if(!InitdFreeType){
-		err = FT_Init_FreeType(&FontLibrary);
-		if(err != 0){
-			printf("freetype 'FT_Init_FreeType' returned error %i\n",err);
-			exit(111);				
-		}
-		InitdFreeType = true;
-	}
-	std::string loc = NAM + ".ttf";
-	// --- load in fonts as desired size
-	err = FT_New_Face(FontLibrary,loc.c_str(),0,&TypeFace);
-	if(err != 0){printf("freetype 'FT_New_Face' returned error %i\n",err);exit(111);}
-	err = FT_Set_Pixel_Sizes(TypeFace,DesiredWidth,DesiredHeight);
-	if(err != 0){printf("freetype 'FT_Set_Pixel_Sizes' returned error %i\n",err);exit(111);				}
-	// --- prepare fontgroup
-	ReturnImage.Groups.resize(1);
-	ReturnImage.Groups[0].Name = NAM;
-	ReturnImage.Groups[0].Type = StomaImagePack::GroupType::FONT;
-	ReturnImage.Groups[0].Glyphs.resize(DesiredGlyphCount);
-	// iterate to get size data for the glyphs to construct pixel buffer and glyphdata
-
-	for(uint32_t gl = 0;gl<DesiredGlyphCount;gl++){
-		CurrentChar = gl+32;
-		err = FT_Load_Char(TypeFace,CurrentChar,FT_LOAD_RENDER|FT_LOAD_TARGET_(FT_RENDER_MODE_SDF));
-		if(err != 0){printf("freetype 'FT_Load_Char' returned error %i\n",err);exit(111);}
-		err = FT_Render_Glyph(TypeFace->glyph,FT_RENDER_MODE_NORMAL);
-		if(err != 0){printf("freetype 'FT_Render_Glyph' returned error %i\n",err);exit(111);}
-		// --- put bitmap info data into glyph
-		ReturnImage.Groups[0].Glyphs[gl].Name = (char)gl+32;
-		ReturnImage.Groups[0].Glyphs[gl].Offset = {RequiredWidth,0};
-		ReturnImage.Groups[0].Glyphs[gl].Size = {TypeFace->glyph->bitmap.width,TypeFace->glyph->bitmap.rows};
-		// --- increase required width and height
-		RequiredWidth += TypeFace->glyph->bitmap.width;
-		if(RequiredHeight < TypeFace->glyph->bitmap.rows){RequiredHeight = TypeFace->glyph->bitmap.rows;}
-	}
-	// --- produce the pixel buffer
-	ReturnImage.Size = {RequiredWidth,RequiredHeight};
-	ReturnImage.Pixels.resize(RequiredWidth*RequiredHeight);
-	// --- iterate for pixel transposing
-	for(uint32_t gl = 0;gl<DesiredGlyphCount;gl++){
-		CurrentChar = gl+32;
-		// --- have freetype draw char to bitmap buffer
-		err = FT_Load_Char(TypeFace,CurrentChar,FT_LOAD_RENDER|FT_LOAD_TARGET_(FT_RENDER_MODE_SDF));
-		if(err != 0){printf("freetype 'FT_Load_Char' returned error %i\n",err);exit(111);}
-		err = FT_Render_Glyph(TypeFace->glyph,FT_RENDER_MODE_NORMAL);
-		if(err != 0){printf("freetype 'FT_Render_Glyph' returned error %i\n",err);exit(111);}
-		if((TypeFace->glyph->bitmap.width*TypeFace->glyph->bitmap.rows) > 0){
-			// --- sanity check that the buffer exists
-			if(TypeFace->glyph->bitmap.buffer == nullptr){printf("returned charbuffer is nullptr");exit(111);}
-			// --- check if size is fucked
-			if(TypeFace->glyph->bitmap.width != ReturnImage.Groups[0].Glyphs[gl].Size.Width
-			|| TypeFace->glyph->bitmap.rows != ReturnImage.Groups[0].Glyphs[gl].Size.Height){
-				printf("glyph %i (aka %c)'s size is different from its previous size, pw:%i ph:%i != cw:%i ch:%i\n",
-					gl,CurrentChar,
-					TypeFace->glyph->bitmap.width,
-					TypeFace->glyph->bitmap.rows,
-					ReturnImage.Groups[0].Glyphs[gl].Size.Width,
-					ReturnImage.Groups[0].Glyphs[gl].Size.Height);
-				exit(111);
-			}
-			if((TypeFace->glyph->bitmap.rows + ReturnImage.Groups[0].Glyphs[gl].Offset.Height) > ReturnImage.Size.Height){
-				printf("glyph %i (aka %c)'s height is greater than the max size, off:%i + hig:%i > max:%i\n",
-					gl,CurrentChar,
-					TypeFace->glyph->bitmap.rows,
-					ReturnImage.Groups[0].Glyphs[gl].Offset.Height,
-					ReturnImage.Size.Height);
-				exit(111);
-			}
-			if((TypeFace->glyph->bitmap.width + ReturnImage.Groups[0].Glyphs[gl].Offset.Width) > ReturnImage.Size.Width){
-				printf("glyph %i (aka %c)'s width is greater than the max size, off:%i + wid:%i > max:%i\n",
-		   			gl,CurrentChar,
-					TypeFace->glyph->bitmap.width,
-					ReturnImage.Groups[0].Glyphs[gl].Offset.Width,
-					ReturnImage.Size.Width);
-				exit(111);
-			}
-			// --- put bitmap buffer data into colour buffer in glyphs position
-			for(uint32_t pixh = 0;pixh < TypeFace->glyph->bitmap.width;pixh++){
-			for(uint32_t pixw = 0;pixw < TypeFace->glyph->bitmap.rows ;pixw++){
-				TransposingColourPosition = GetCoordinate(
-					pixw,
-					pixh,
-					TypeFace->glyph->bitmap.rows);
-				TargetColourPosition = GetCoordinate(
-					ReturnImage.Groups[0].Glyphs[gl].Offset.Width + pixw,
-					ReturnImage.Groups[0].Glyphs[gl].Offset.Height + pixh,
-					ReturnImage.Size.Width);
-				TransposingColour = TypeFace->glyph->bitmap.buffer[TransposingColourPosition];
-				ReturnImage.Pixels[TargetColourPosition] = {
-					TransposingColour,
-					TransposingColour,
-					TransposingColour,
-					255};
-			}}
-		}
-	}
-	
-	return ReturnImage;
-}
-StomaImagePack::Image Read_png(std::string NAM,StomaImagePack::GroupType TYPE) {
-	// assumes .png has been trimmed off
-	uint32_t HoldPosition;
-	StomaImagePack::Image ReturnImage;
-	png::rgba_pixel HoldPixel;
-	std::string SourceDir;
-	std::string GlyphName;
-	png::image<png::rgba_pixel> PngFile(NAM + ".png");
-	ReturnImage.Size.Width = PngFile.get_width();
-	ReturnImage.Size.Height = PngFile.get_height();
-	// pngs only have 1 glyph
-	ReturnImage.Groups.resize(1);
-	ReturnImage.Groups[0].Glyphs.resize(1);
-	SliceOutLastOfChar(NAM, '/', SourceDir, GlyphName);
-	ReturnImage.Groups[0].Name = "";
-	ReturnImage.Groups[0].Type = TYPE;
-	ReturnImage.Groups[0].Glyphs[0].Name = GlyphName;
-	ReturnImage.Groups[0].Glyphs[0].Size = ReturnImage.Size;
-	// handle pixel array
-	ReturnImage.Pixels.resize(ReturnImage.Size.Width * ReturnImage.Size.Height);
-	for(uint32_t h = 0; h < ReturnImage.Size.Height; h++) {
-		for(uint32_t w = 0; w < ReturnImage.Size.Width; w++) {
-			HoldPosition = GetCoordinate(w, h, ReturnImage.Size.Width);
-			HoldPixel = PngFile.get_pixel(w, h);
-			ReturnImage.Pixels[HoldPosition].R = HoldPixel.red;
-			ReturnImage.Pixels[HoldPosition].G = HoldPixel.green;
-			ReturnImage.Pixels[HoldPosition].B = HoldPixel.blue;
-			ReturnImage.Pixels[HoldPosition].A = HoldPixel.alpha;
-		}
-	}
-	return ReturnImage;
-}
-void Write_png(StomaImagePack::Image IMG, std::string NAM) {
-	png::image<png::rgba_pixel> WriteFile;
-	WriteFile.resize(IMG.Size.Width, IMG.Size.Height);
-	png::rgba_pixel HoldPixel;
-	uint32_t CurrentCoordinate;
-	for(uint32_t h = 0; h < IMG.Size.Height; h++) {
-		for(uint32_t w = 0; w < IMG.Size.Width; w++) {
-			CurrentCoordinate = GetCoordinate(w, h, IMG.Size.Width);
-			HoldPixel.red = 	IMG.Pixels[CurrentCoordinate].R;
-			HoldPixel.green = 	IMG.Pixels[CurrentCoordinate].G;
-			HoldPixel.blue = 	IMG.Pixels[CurrentCoordinate].B;
-			HoldPixel.alpha = 	IMG.Pixels[CurrentCoordinate].A;
-			WriteFile.set_pixel(w, h, HoldPixel);
-		}
-	}
-	WriteFile.write(NAM + ".png");
 }
 
 void SliceOutLastOfChar(std::string INP, char TARG, std::string &OutStart,
@@ -454,10 +313,12 @@ std::vector<StomaImagePack::Image> SeperateGlyphs(std::vector<StomaImagePack::Im
 			HoldingImage.Pixels.resize(NewPixelCount);
 			// get pixels from old image into new image
 			if((OldOffset.Width+NewSize.Width)		> FEDIMAGES[img].Size.Width){
-				printf("Image[%i].Group[%i].Glyph[%i]'s offset+size width is greater than the width of the image, off:%i + size:%i > width:%i\n",img,grp,gly,OldOffset.Width,NewSize.Width,FEDIMAGES[img].Size.Width);exit(1212);
+				printf("Image[%i].Group[%i].Glyph[%i]'s offset+size width is greater than the width of the image, off:%i + size:%i > width:%i\n",img,grp,gly,OldOffset.Width,NewSize.Width,FEDIMAGES[img].Size.Width);
+				exit((uint32_t)ExitCode::STOMAIMAGEERROREXIT);
 			}
 			if((OldOffset.Height+NewSize.Height)	> FEDIMAGES[img].Size.Height){
-				printf("Image[%i].Group[%i].Glyph[%i]'s offset+size height is greater than the height of the image, off:%i + size:%i > height:%i\n",img,grp,gly,OldOffset.Height,NewSize.Height,FEDIMAGES[img].Size.Height);exit(1212);
+				printf("Image[%i].Group[%i].Glyph[%i]'s offset+size height is greater than the height of the image, off:%i + size:%i > height:%i\n",img,grp,gly,OldOffset.Height,NewSize.Height,FEDIMAGES[img].Size.Height);
+				exit((uint32_t)ExitCode::STOMAIMAGEERROREXIT);
 			}
 			for(uint32_t h = 0; h < NewSize.Height; h++) {
 			for(uint32_t w = 0; w < NewSize.Width; w++) {
@@ -467,10 +328,12 @@ std::vector<StomaImagePack::Image> SeperateGlyphs(std::vector<StomaImagePack::Im
 					OldOffset.Height + h,
 					FEDIMAGES[img].Size.Width);
 				if(HoldPixelPosition > NewPixelCount){
-					printf("new image is too small to take data from Image[%i].Group[%i].Glyph[%i]\n",img,grp,gly);exit(1212);
+					printf("new image is too small to take data from Image[%i].Group[%i].Glyph[%i]\n",img,grp,gly);
+					exit((uint32_t)ExitCode::STOMAIMAGEERROREXIT);
 				}
 				if(FedPixelPosition > OldPixelCount){
-					printf("old image is too small for Image[%i].Group[%i].Glyph[%i]'s data to be valid\n",img,grp,gly);exit(1212);
+					printf("old image is too small for Image[%i].Group[%i].Glyph[%i]'s data to be valid\n",img,grp,gly);
+					exit((uint32_t)ExitCode::STOMAIMAGEERROREXIT);
 				}
 				HoldingImage.Pixels[HoldPixelPosition] = FEDIMAGES[img].Pixels[FedPixelPosition];
 			}}
@@ -535,7 +398,7 @@ MergeImages(std::vector<StomaImagePack::Image> SUBIMAGES) {
 			}
 			default:{
 				printf("Invalid GroupType on image %i\n",im);
-				exit(122);
+				exit((uint32_t)ExitCode::STOMAIMAGEERROREXIT);
 			}
 		}
 	for (uint32_t gl = 0;gl < SUBIMAGES[im].Groups[gr].Glyphs.size();gl++) {
@@ -717,4 +580,579 @@ ReorderByVolume(std::vector<StomaImagePack::Image> UNORDERED) {
 
 inline uint32_t GetCoordinate(uint32_t XPOS, uint32_t YPOS, uint32_t MAXX) {
 	return (XPOS + (YPOS * MAXX));
+}
+
+void WriteOut(StomaImagePack::Image IMG, std::string NAM) {
+	if(OutFileType == FileType::PNG) {
+		Write_png(IMG, NAM);
+	} else {
+		StomaImagePack::WriteStimpac(IMG, NAM);
+	}
+}
+StomaImagePack::Image Read_ttf(std::string NAM) {
+	// NOTE: based on https://nikramakrishnan.github.io/freetype-web-jekyll/docs/tutorial/step1.html
+	// and https://github.com/tsoding/ded
+	// NOTE: even though we request a desired size freetype can just ignore it and return an oversized glyph
+	StomaImagePack::Image ReturnImage;
+	// prepare font texture
+	uint32_t DesiredWidth = 64;
+	uint32_t DesiredHeight = 64;
+	
+	// HACK: currently only gets chars within char range 
+	uint32_t DesiredGlyphCount = 128-32;
+	
+	FT_Face TypeFace;
+	FT_Error err;
+
+	uint8_t TransposingColour;
+	uint32_t TransposingColourPosition;
+	uint32_t TargetColourPosition;
+	uint32_t CurrentChar;
+
+	uint32_t RequiredWidth = 0;
+	uint32_t RequiredHeight = 0;
+	if(!InitdFreeType){
+		err = FT_Init_FreeType(&FontLibrary);
+		if(err != 0){
+			printf("freetype 'FT_Init_FreeType' returned error %i\n",err);
+			exit((uint32_t)ExitCode::FREETYPEERROREXIT);				
+		}
+		InitdFreeType = true;
+	}
+	std::string loc = NAM + ".ttf";
+	// --- load in fonts as desired size
+	err = FT_New_Face(FontLibrary,loc.c_str(),0,&TypeFace);
+	if(err != 0){
+		printf("freetype 'FT_New_Face' returned error %i\n",err);
+		exit((uint32_t)ExitCode::FREETYPEERROREXIT);
+	}
+	err = FT_Set_Pixel_Sizes(TypeFace,DesiredWidth,DesiredHeight);
+	if(err != 0){
+		printf("freetype 'FT_Set_Pixel_Sizes' returned error %i\n",err);
+		exit((uint32_t)ExitCode::FREETYPEERROREXIT);
+	}
+	// --- prepare fontgroup
+	ReturnImage.Groups.resize(1);
+	ReturnImage.Groups[0].Name = NAM;
+	ReturnImage.Groups[0].Type = StomaImagePack::GroupType::FONT;
+	ReturnImage.Groups[0].Glyphs.resize(DesiredGlyphCount);
+	// iterate to get size data for the glyphs to construct pixel buffer and glyphdata
+
+	for(uint32_t gl = 0;gl<DesiredGlyphCount;gl++){
+		CurrentChar = gl+32;
+		err = FT_Load_Char(TypeFace,CurrentChar,FT_LOAD_RENDER|FT_LOAD_TARGET_(FT_RENDER_MODE_SDF));
+		if(err != 0){
+			printf("freetype 'FT_Load_Char' returned error %i\n",err);
+			exit((uint32_t)ExitCode::FREETYPEERROREXIT);
+		}
+		err = FT_Render_Glyph(TypeFace->glyph,FT_RENDER_MODE_NORMAL);
+		if(err != 0){
+			printf("freetype 'FT_Render_Glyph' returned error %i\n",err);
+			exit((uint32_t)ExitCode::FREETYPEERROREXIT);
+		}
+		// --- put bitmap info data into glyph
+		ReturnImage.Groups[0].Glyphs[gl].Name = (char)gl+32;
+		ReturnImage.Groups[0].Glyphs[gl].Offset = {RequiredWidth,0};
+		ReturnImage.Groups[0].Glyphs[gl].Size = {TypeFace->glyph->bitmap.width,TypeFace->glyph->bitmap.rows};
+		// --- increase required width and height
+		RequiredWidth += TypeFace->glyph->bitmap.width;
+		if(RequiredHeight < TypeFace->glyph->bitmap.rows){RequiredHeight = TypeFace->glyph->bitmap.rows;}
+	}
+	// --- produce the pixel buffer
+	ReturnImage.Size = {RequiredWidth,RequiredHeight};
+	ReturnImage.Pixels.resize(RequiredWidth*RequiredHeight);
+	// --- iterate for pixel transposing
+	for(uint32_t gl = 0;gl<DesiredGlyphCount;gl++){
+		CurrentChar = gl+32;
+		// --- have freetype draw char to bitmap buffer
+		err = FT_Load_Char(TypeFace,CurrentChar,FT_LOAD_RENDER|FT_LOAD_TARGET_(FT_RENDER_MODE_SDF));
+		if(err != 0){
+			printf("freetype 'FT_Load_Char' returned error %i\n",err);
+			exit((uint32_t)ExitCode::FREETYPEERROREXIT);
+		}
+		err = FT_Render_Glyph(TypeFace->glyph,FT_RENDER_MODE_NORMAL);
+		if(err != 0){
+			printf("freetype 'FT_Render_Glyph' returned error %i\n",err);
+			exit((uint32_t)ExitCode::FREETYPEERROREXIT);
+		}
+		if((TypeFace->glyph->bitmap.width*TypeFace->glyph->bitmap.rows) > 0){
+			// --- sanity check that the buffer exists
+			if(TypeFace->glyph->bitmap.buffer == nullptr){
+				printf("returned charbuffer is nullptr");
+				exit((uint32_t)ExitCode::FREETYPEERROREXIT);
+			}
+			// --- check if size is fucked
+			if(TypeFace->glyph->bitmap.width != ReturnImage.Groups[0].Glyphs[gl].Size.Width
+			|| TypeFace->glyph->bitmap.rows != ReturnImage.Groups[0].Glyphs[gl].Size.Height){
+				printf("glyph %i (aka %c)'s size is different from its previous size, pw:%i ph:%i != cw:%i ch:%i\n",
+					gl,CurrentChar,
+					TypeFace->glyph->bitmap.width,
+					TypeFace->glyph->bitmap.rows,
+					ReturnImage.Groups[0].Glyphs[gl].Size.Width,
+					ReturnImage.Groups[0].Glyphs[gl].Size.Height);
+				exit((uint32_t)ExitCode::FREETYPEERROREXIT);
+			}
+			if((TypeFace->glyph->bitmap.rows + ReturnImage.Groups[0].Glyphs[gl].Offset.Height) > ReturnImage.Size.Height){
+				printf("glyph %i (aka %c)'s height is greater than the max size, off:%i + hig:%i > max:%i\n",
+					gl,CurrentChar,
+					TypeFace->glyph->bitmap.rows,
+					ReturnImage.Groups[0].Glyphs[gl].Offset.Height,
+					ReturnImage.Size.Height);
+				exit((uint32_t)ExitCode::FREETYPEERROREXIT);
+			}
+			if((TypeFace->glyph->bitmap.width + ReturnImage.Groups[0].Glyphs[gl].Offset.Width) > ReturnImage.Size.Width){
+				printf("glyph %i (aka %c)'s width is greater than the max size, off:%i + wid:%i > max:%i\n",
+		   			gl,CurrentChar,
+					TypeFace->glyph->bitmap.width,
+					ReturnImage.Groups[0].Glyphs[gl].Offset.Width,
+					ReturnImage.Size.Width);
+				exit((uint32_t)ExitCode::FREETYPEERROREXIT);
+			}
+			// --- put bitmap buffer data into colour buffer in glyphs position
+			for(uint32_t pixh = 0;pixh < TypeFace->glyph->bitmap.width;pixh++){
+			for(uint32_t pixw = 0;pixw < TypeFace->glyph->bitmap.rows ;pixw++){
+				TransposingColourPosition = GetCoordinate(
+					pixw,
+					pixh,
+					TypeFace->glyph->bitmap.rows);
+				TargetColourPosition = GetCoordinate(
+					ReturnImage.Groups[0].Glyphs[gl].Offset.Width + pixw,
+					ReturnImage.Groups[0].Glyphs[gl].Offset.Height + pixh,
+					ReturnImage.Size.Width);
+				TransposingColour = TypeFace->glyph->bitmap.buffer[TransposingColourPosition];
+				ReturnImage.Pixels[TargetColourPosition] = {
+					TransposingColour,
+					TransposingColour,
+					TransposingColour,
+					255};
+			}}
+		}
+	}
+	
+	return ReturnImage;
+}
+#ifdef USING_LIBPNG
+// NOTE: based on https://refspecs.linuxbase.org/LSB_3.1.0/LSB-Desktop-generic/LSB-Desktop-generic/libpng12.png.create.read.struct.1.html
+// and https://www.freepascal.org/daily/packages/libpng/png/png_error_ptr.html
+// as libpng docs are obnoxious
+void PNG_ErrorCallback(png_struct* P,char* C){
+
+}
+void PNG_WarnCallback(png_struct* P,char* C){
+	
+}
+#endif
+StomaImagePack::Image Read_png(std::string NAM,StomaImagePack::GroupType TYPE) {
+	// assumes .png has been trimmed off
+	// NOTE: using pngpp as libpng is a classic needlessly complex library
+	StomaImagePack::Image ReturnImage;
+	std::string SourceDir;
+	std::string GlyphName;
+	uint32_t HoldPosition;
+	
+	std::string FileName = NAM+".png";
+	printf("'FileName' = %s\n",FileName.c_str());
+	#ifdef USING_PNGPP
+	{
+		png::rgba_pixel HoldPixel;
+		png::image<png::rgba_pixel> PngFile(NAM + ".png");
+		ReturnImage.Size.Width = PngFile.get_width();
+		ReturnImage.Size.Height = PngFile.get_height();
+		// pngs only have 1 glyph
+		ReturnImage.Groups.resize(1);
+		ReturnImage.Groups[0].Glyphs.resize(1);
+		SliceOutLastOfChar(NAM, '/', SourceDir, GlyphName);
+		ReturnImage.Groups[0].Name = "";
+		ReturnImage.Groups[0].Type = TYPE;
+		ReturnImage.Groups[0].Glyphs[0].Name = GlyphName;
+		ReturnImage.Groups[0].Glyphs[0].Size = ReturnImage.Size;
+		// handle pixel array
+		ReturnImage.Pixels.resize(ReturnImage.Size.Width * ReturnImage.Size.Height);
+		for(uint32_t h = 0; h < ReturnImage.Size.Height; h++) {
+		for(uint32_t w = 0; w < ReturnImage.Size.Width; w++) {
+			HoldPosition = GetCoordinate(w, h, ReturnImage.Size.Width);
+			HoldPixel = PngFile.get_pixel(w, h);
+			ReturnImage.Pixels[HoldPosition].R = HoldPixel.red;
+			ReturnImage.Pixels[HoldPosition].G = HoldPixel.green;
+			ReturnImage.Pixels[HoldPosition].B = HoldPixel.blue;
+			ReturnImage.Pixels[HoldPosition].A = HoldPixel.alpha;
+		}}
+	}
+	#elif USING_LIBPNG
+	{
+		// NOTE: libpng is by far the most obnoxiusly obtuse garbage ever
+		// NOTE: based on https://jeromebelleman.gitlab.io/posts/devops/libpng/
+		// and https://gist.github.com/niw/5963798
+		// TODO: get actual errors printed
+		FILE* SourceFilePtr;
+		png_struct* PngDataPtr;
+		png_info* PngInfoPtr; 
+		uint32_t width;
+		uint32_t hight;
+		uint32_t coltype;
+		uint32_t bitdept;
+		png_byte** RowDataPtrPtr;
+		size_t t_rowbyte;
+		SourceFilePtr = fopen(FileName.c_str(), "r");
+		if(SourceFilePtr == nullptr){
+			printf("'SourceFilePtr' is nullptr\n");
+			exit((uint32_t)ExitCode::LIBPNGREADERROREXIT);
+		}
+		//PngDataPtr = png_create_read_struct(PNG_LIBPNG_VER_STRING,PNG_ErrorData,PNG_ErrorCallback,PNG_WarnCallback);
+		PngDataPtr = png_create_read_struct(PNG_LIBPNG_VER_STRING,NULL,NULL,NULL);
+		if (PngDataPtr == nullptr){
+			printf("'PngDataPtr' is nullptr\n");
+			exit((uint32_t)ExitCode::LIBPNGREADERROREXIT);
+		}
+		PngInfoPtr = png_create_info_struct(PngDataPtr);
+		if (PngInfoPtr == nullptr){
+			printf("'PngInfoPtr' is nullptr\n");
+			exit((uint32_t)ExitCode::LIBPNGREADERROREXIT);
+		}
+		// NOTE: due to setjmp failing constantly its commented
+		//if(setjmp(png_jmpbuf(PngDataPtr))){
+		//	printf("png read 'setjmp' failed\n");
+		//	exit((uint32_t)ExitCode::LIBPNGREADERROREXIT);
+		//}
+		png_init_io(PngDataPtr,SourceFilePtr);
+		png_read_png(PngDataPtr,PngInfoPtr,PNG_TRANSFORM_IDENTITY,NULL);
+		width = png_get_image_width(PngDataPtr,PngInfoPtr);
+		hight = png_get_image_height(PngDataPtr,PngInfoPtr);
+		coltype = png_get_color_type(PngDataPtr,PngInfoPtr);
+		bitdept = png_get_bit_depth(PngDataPtr,PngInfoPtr);
+		// uncrap the data into rgba
+		if(bitdept == 16){
+			png_set_strip_16(PngDataPtr);
+		}
+		if(coltype == PNG_COLOR_TYPE_PALETTE){
+			png_set_palette_to_rgb(PngDataPtr);
+		}
+		if(coltype == PNG_COLOUR_TYPE_GREY && bitdept < 8){
+			png_set_expand_gray_1_2_4_to_8(PngDataPtr);
+		}
+		if(png_get_valid(PngDataPtr,PngInfoPtr,PNG_INFO_tRNS)){
+			png_set_tRNS_to_alpha(PngDataPtr);
+		}
+		if(coltype == PNG_COLOUR_TYPE_RGB
+		|| coltype == PNG_COLOUR_TYPE_GREY
+		|| coltype == PNG_COLOUR_TYPE_PALETTE){
+			png_set_filler(PngDataPtr,255,PNG_FILLER_AFTER);
+		}
+		if(coltype == PNG_COLOUR_TYPE_GREY
+		|| coltype == PNG_COLOUR_TYPE_GREY_ALPHA){
+			png_set_grey_to_rgb(PngDataPtr);
+		}
+		png_read_update_info(PngDataPtr,PngInfoPtr);
+    
+		RowDataPtrPtr = (png_byte**)malloc(sizeof(png_byte*)*hight);
+		t_rowbyte = png_get_rowbytes(PngDataPtr,PngInfoPtr);
+		for(uint32_t i = 0;i<hight;i++){
+			RowDataPtrPtr[i] = (png_byte*)malloc(t_rowbyte);
+		}
+		png_read_image(PngDataPtr,RowDataPtrPtr);
+		// convert data to intermideate format
+		ReturnImage.Size.Width = width;
+		ReturnImage.Size.Height =hight;
+		ReturnImage.Groups.resize(1);
+		ReturnImage.Groups[0].Glyphs.resize(1);
+		SliceOutLastOfChar(NAM, '/', SourceDir, GlyphName);
+		ReturnImage.Groups[0].Name = "";
+		ReturnImage.Groups[0].Type = TYPE;
+		ReturnImage.Groups[0].Glyphs[0].Name = GlyphName;
+		ReturnImage.Groups[0].Glyphs[0].Size = ReturnImage.Size;
+    
+		ReturnImage.Pixels.resize(ReturnImage.Size.Width * ReturnImage.Size.Height);
+		for(uint32_t h = 0; h < ReturnImage.Size.Height; h++) {
+		for(uint32_t w = 0; w < ReturnImage.Size.Width; w++) {
+			HoldPosition = GetCoordinate(w, h, ReturnImage.Size.Width);
+			ReturnImage.Pixels[HoldPosition].R = RowDataPtrPtr[h][(w*4)+0];
+			ReturnImage.Pixels[HoldPosition].G = RowDataPtrPtr[h][(w*4)+1];
+			ReturnImage.Pixels[HoldPosition].B = RowDataPtrPtr[h][(w*4)+2];
+			ReturnImage.Pixels[HoldPosition].A = RowDataPtrPtr[h][(w*4)+3];
+		}}
+		// cleanup
+		for(uint32_t i = 0;i<hight;i++){
+			free(RowDataPtrPtr[i]);
+		}
+		free(RowDataPtrPtr);
+		fclose(SourceFilePtr);
+		png_destroy_read_struct(&PngDataPtr,&PngInfoPtr,NULL);
+		// return
+	}
+	#else
+	// reads entire file to char array
+	std::ifstream ReadFile;
+	std::vector<uint8_t> CharVector;
+	char HoldChar;
+	uint32_t CurrentPosition;
+
+	// IHDR info
+	uint8_t BitDepth;
+	uint8_t ColourType;
+	uint8_t Compression;
+	uint8_t Filter;
+	uint8_t Interlace;
+	// PLTE info
+	std::vector<uint8_t> ColourData;
+	// IDAT info
+	std::vector<uint8_t> ImageData = {};
+
+
+	ReadFile.open(FileName,std::ios::binary);
+	if(!ReadFile.is_open()) {
+		printf("could not read %s.\n", NAM.c_str());
+		exit(1);
+	}
+	while(ReadFile.get(HoldChar)) {
+		CharVector.push_back(HoldChar);
+	}
+	if(!ReadFile.eof()){exit(10);}
+	ReadFile.close();
+	// get file signiture
+	CurrentPosition = 0;
+	{
+		uint8_t Desired[8]{
+		0x89,
+		0x50,
+		0x4E,
+		0x47,
+		0x0D,
+		0x0A,
+		0x1A,
+		0x0A
+		};
+		uint8_t Signature[8];
+		for (uint32_t i = 0;i<8;i++) {
+			Signature[i] = CharVector[CurrentPosition];CurrentPosition++;
+		}
+		uint64_t a = *Signature;
+		uint64_t b = *Desired;
+		if(a==b){
+			printf("file %s is valid as png signiture (%lu) == desired (%lu) \n",FileName.c_str(),a,b);
+		}else{
+			printf("file %s is not a valid png as signiture (%lu) != desired (%lu) \n",FileName.c_str(),a,b);
+			exit(ExitCode::CUSTOMPNGREADERROREXIT);
+		}
+	}
+	{
+		// iterate over chunks until eof flag or end of charvector 
+		bool FileEndHit = false;
+		uint8_t* CharVoodoo;
+		uint32_t ChunkLength;
+		char ChunkType[5];
+		std::vector<uint8_t> ChunkData;
+		uint8_t ChunkCRC[5];
+
+		ChunkType[4] = 0;
+		ChunkCRC[4] = 0;
+		// NOTE: pngs are big endian and are thus read "left to right"
+		while(FileEndHit == false){
+			ChunkData.resize(0);
+			/*
+				// Version						| uint32 	| 4
+				CharVoodoo = (uint8_t*)&FileVersion;
+				for(uint32_t i=0;i<4;i++) {CharVoodoo[i]=CharVector[CurrentPosition];CurrentPosition++;}
+			*/
+			// read length // 4 bytes
+			uint8_t RawChunkLength[4];
+			RawChunkLength[0] = CharVector[CurrentPosition+0];
+			RawChunkLength[1] = CharVector[CurrentPosition+1];
+			RawChunkLength[2] = CharVector[CurrentPosition+2];
+			RawChunkLength[3] = CharVector[CurrentPosition+3];
+			CurrentPosition+=4;
+			uint32_t* intermediate = (uint32_t*)RawChunkLength;
+			ChunkLength = *intermediate;
+			// read type // 4 bytes
+			for (uint32_t i = 0;i<4;i++) {ChunkType[i] = CharVector[CurrentPosition];CurrentPosition++;}
+			// read chunk data
+			ChunkData.resize(ChunkLength);
+			if(ChunkLength>CharVector.size()){
+				printf("ChunkLen for %s in %s is %i out of CharVectors size of %i\n",ChunkType,FileName.c_str(),ChunkLength,(uint32_t)CharVector.size());
+				exit(ExitCode::CUSTOMPNGREADERROREXIT);
+			}
+			for(uint32_t i = 0;i<ChunkLength;i++){
+				ChunkData[i] = CharVector[CurrentPosition];CurrentPosition++;
+			}
+			// read crc
+			for (uint32_t i = 0;i<4;i++) {
+				ChunkCRC[i] = CharVector[CurrentPosition];CurrentPosition++;
+			}
+			// handle chunk
+			{
+				// data chunk aka IHDR
+				if(ChunkType[0] == 'I'
+				&& ChunkType[1] == 'H'
+				&& ChunkType[2] == 'D'
+				&& ChunkType[3] == 'R'){
+					// TODO: handle data chunk
+					uint32_t datapos = 0;
+					// get width
+					CharVoodoo = (uint8_t*)&ReturnImage.Size.Width;
+					for(uint32_t i = 0;i<4;i++){
+						CharVoodoo[i] = ChunkData[datapos];datapos++;
+					}
+					// get height
+					CharVoodoo = (uint8_t*)&ReturnImage.Size.Height;
+					for(uint32_t i = 0;i<4;i++){
+						CharVoodoo[i] = ChunkData[datapos];datapos++;
+					}
+					// get bit depth
+					CharVoodoo = (uint8_t*)&BitDepth;
+					for(uint32_t i = 0;i<1;i++){
+						CharVoodoo[i] = ChunkData[datapos];datapos++;
+					}
+					// get colour type
+					CharVoodoo = (uint8_t*)&ColourType;
+					for(uint32_t i = 0;i<1;i++){
+						CharVoodoo[i] = ChunkData[datapos];datapos++;
+					}
+					// get Compression
+					CharVoodoo = (uint8_t*)&Compression;
+					for(uint32_t i = 0;i<1;i++){
+						CharVoodoo[i] = ChunkData[datapos];datapos++;
+					}
+					// get Filter
+					CharVoodoo = (uint8_t*)&Filter;
+					for(uint32_t i = 0;i<1;i++){
+						CharVoodoo[i] = ChunkData[datapos];datapos++;
+					}
+					// get interlace
+					CharVoodoo = (uint8_t*)&Interlace;
+					for(uint32_t i = 0;i<1;i++){
+						CharVoodoo[i] = ChunkData[datapos];datapos++;
+					}
+					goto NextChunk;
+				}
+				// palete chunk aka PLTE			
+				if(ChunkType[0] == 'P'
+				&& ChunkType[1] == 'L'
+				&& ChunkType[2] == 'T'
+				&& ChunkType[3] == 'E'){
+					ColourData = ChunkData;
+					goto NextChunk;				
+				}
+				// image data aka IDAT
+				if(ChunkType[0] == 'I'
+				&& ChunkType[1] == 'D'
+				&& ChunkType[2] == 'A'
+				&& ChunkType[3] == 'T'){
+					// NOTE: as multiple IDAT chunks can exist we shall append data to previous data
+					for(uint32_t i = 0;i<ChunkLength;i++){
+						ImageData.push_back(ChunkData[i]);
+					}
+					goto NextChunk;
+				}
+				// file end chunk aka IEND
+				if(ChunkType[0] == 'I'
+				&& ChunkType[1] == 'E'
+				&& ChunkType[2] == 'N'
+				&& ChunkType[3] == 'D'){
+					FileEndHit = true;
+					goto NextChunk;
+				
+				}
+				// TODO: add code to handle optional chunks
+
+				//
+				NextChunk:;
+				// endof handling this chunk
+			}		
+		}
+	}
+	
+
+
+
+	
+
+
+	exit(99);
+	#endif
+	return ReturnImage;// returns read image 
+}
+void Write_png(StomaImagePack::Image IMG, std::string NAM) {
+	#ifdef USING_PNGPP
+	{
+		png::image<png::rgba_pixel> WriteFile;
+		if(WriteFile.get_width() != IMG.Size.Width
+		|| WriteFile.get_height()!= IMG.Size.Height){
+			WriteFile.resize(IMG.Size.Width, IMG.Size.Height);
+		}
+		png::rgba_pixel HoldPixel;
+		uint32_t CurrentCoordinate;
+		for(uint32_t h = 0; h < IMG.Size.Height; h++) {
+		for(uint32_t w = 0; w < IMG.Size.Width; w++) {
+			CurrentCoordinate = GetCoordinate(w, h, IMG.Size.Width);
+			HoldPixel.red = 	IMG.Pixels[CurrentCoordinate].R;
+			HoldPixel.green = 	IMG.Pixels[CurrentCoordinate].G;
+			HoldPixel.blue = 	IMG.Pixels[CurrentCoordinate].B;
+			HoldPixel.alpha = 	IMG.Pixels[CurrentCoordinate].A;
+			WriteFile.set_pixel(w, h, HoldPixel);
+		}}
+		WriteFile.write(NAM + ".png");
+	}
+	#elif USING_LIBPNG
+	{
+		uint32_t HoldPosition;
+		std::string FileName = NAM+".png";
+
+		FILE* SourceFilePtr;
+		png_struct* PngDataPtr;
+		png_info* PngInfoPtr;
+    
+		printf("'FileName' = %s\n",FileName.c_str());
+		SourceFilePtr = fopen(FileName.c_str(),"wb");
+		if(SourceFilePtr == nullptr){
+			printf("'SourceFilePtr' is nullptr\n");
+			exit((uint32_t)ExitCode::LIBPNGWRITEERROREXIT);
+		}
+		PngDataPtr = png_create_write_struct(PNG_LIBPNG_VER_STRING,NULL,NULL,NULL);
+		if(PngDataPtr == nullptr){
+			printf("'PngDataPtr' is nullptr\n");
+			exit((uint32_t)ExitCode::LIBPNGWRITEERROREXIT);
+		}
+		PngInfoPtr = png_create_info_struct(PngDataPtr);
+		if(PngInfoPtr == nullptr){
+			printf("'PngInfoPtr' is nullptr\n");
+			exit((uint32_t)ExitCode::LIBPNGWRITEERROREXIT);
+		}
+		// NOTE: due to setjmp failing constantly its commented
+		//if(setjmp(png_jmpbuf(PngDataPtr))){
+		//	printf("png write 'setjmp' failed\n");
+		//	exit((uint32_t)ExitCode::LIBPNGWRITEERROREXIT);
+		//}
+		png_init_io(PngDataPtr,SourceFilePtr);
+		png_set_IHDR(PngDataPtr,PngInfoPtr,
+		IMG.Size.Width,IMG.Size.Height,8,
+		PNG_COLOUR_TYPE_RGBA,
+		PNG_INTERLACE_NONE,
+		PNG_COMPRESSION_TYPE_DEFAULT,
+		PNG_FILTER_TYPE_DEFAULT);
+		png_write_info(PngDataPtr,PngInfoPtr);
+    
+		png_byte** RowDataPtrPtr = (png_byte**)malloc(sizeof(png_byte*)*IMG.Size.Height);
+		size_t t_rowbyte = png_get_rowbytes(PngDataPtr,PngInfoPtr);
+		// dump pixel data into image data 
+		for(uint32_t i = 0;i<IMG.Size.Height;i++){
+			RowDataPtrPtr[i] = (png_byte*)malloc(t_rowbyte);
+		}
+		for(uint32_t h = 0; h < IMG.Size.Height; h++) {
+		for(uint32_t w = 0; w < IMG.Size.Width; w++) {
+			HoldPosition = GetCoordinate(w, h, IMG.Size.Width);
+			RowDataPtrPtr[h][(w*4)+0] = IMG.Pixels[HoldPosition].R;
+			RowDataPtrPtr[h][(w*4)+1] = IMG.Pixels[HoldPosition].G;
+			RowDataPtrPtr[h][(w*4)+2] = IMG.Pixels[HoldPosition].B;
+			RowDataPtrPtr[h][(w*4)+3] = IMG.Pixels[HoldPosition].A;
+		}}
+		png_write_image(PngDataPtr, RowDataPtrPtr);
+		png_write_end(PngDataPtr, NULL);
+    
+		for(uint32_t i = 0;i<IMG.Size.Height;i++){
+			free(RowDataPtrPtr[i]);
+		}
+		free(RowDataPtrPtr);
+		fclose(SourceFilePtr);
+		png_destroy_write_struct(&PngDataPtr, &PngInfoPtr);
+	}
+	#endif
 }
