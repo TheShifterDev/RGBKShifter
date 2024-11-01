@@ -18,6 +18,8 @@
 * "be5invis" and other contributors for the font used in testing https://github.com/be5invis/Iosevka/releases
 # Notes
 ## TODO
+* get handrolled png writing done
+* test handrolled png code tested
 * add way to request grouptype for read file
 * fix stimpac not having source name from read files
 * add working freetype ttf reading
@@ -25,6 +27,7 @@
 * look into creating "sequences" for gifs/animations/variants/bumpmaps
 * make cross platform
 ## DONE
+* get handrolled png reading done
 * add more alias' for commands
 * simplified internals to process on read
 * allow for some files to be palleted with one file and others with another
