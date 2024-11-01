@@ -887,7 +887,8 @@ StomaImagePack::Image Read_png(std::string NAM,StomaImagePack::GroupType TYPE) {
 	uint32_t CurrentPosition;
 
 	// IHDR info
-	uint8_t BitDepth;
+	bool IHDRTaken = false;
+	uint8_t BitsPerColourChannel;
 	uint8_t ColourType;
 	uint8_t Compression;
 	uint8_t Filter;
@@ -927,9 +928,7 @@ StomaImagePack::Image Read_png(std::string NAM,StomaImagePack::GroupType TYPE) {
 		}
 		uint64_t a = *Signature;
 		uint64_t b = *Desired;
-		if(a==b){
-			printf("file %s is valid as png signiture (%lu) == desired (%lu) \n",FileName.c_str(),a,b);
-		}else{
+		if(a!=b){
 			printf("file %s is not a valid png as signiture (%lu) != desired (%lu) \n",FileName.c_str(),a,b);
 			exit(ExitCode::CUSTOMPNGREADERROREXIT);
 		}
@@ -948,17 +947,13 @@ StomaImagePack::Image Read_png(std::string NAM,StomaImagePack::GroupType TYPE) {
 		// NOTE: pngs are big endian and are thus read "left to right"
 		while(FileEndHit == false){
 			ChunkData.resize(0);
-			/*
-				// Version						| uint32 	| 4
-				CharVoodoo = (uint8_t*)&FileVersion;
-				for(uint32_t i=0;i<4;i++) {CharVoodoo[i]=CharVector[CurrentPosition];CurrentPosition++;}
-			*/
 			// read length // 4 bytes
+			// NOTE: these are backwards... nothing else is... but this is
 			uint8_t RawChunkLength[4];
-			RawChunkLength[0] = CharVector[CurrentPosition+0];
-			RawChunkLength[1] = CharVector[CurrentPosition+1];
-			RawChunkLength[2] = CharVector[CurrentPosition+2];
-			RawChunkLength[3] = CharVector[CurrentPosition+3];
+			RawChunkLength[0] = CharVector[CurrentPosition+3];
+			RawChunkLength[1] = CharVector[CurrentPosition+2];
+			RawChunkLength[2] = CharVector[CurrentPosition+1];
+			RawChunkLength[3] = CharVector[CurrentPosition+0];
 			CurrentPosition+=4;
 			uint32_t* intermediate = (uint32_t*)RawChunkLength;
 			ChunkLength = *intermediate;
@@ -984,7 +979,9 @@ StomaImagePack::Image Read_png(std::string NAM,StomaImagePack::GroupType TYPE) {
 				&& ChunkType[1] == 'H'
 				&& ChunkType[2] == 'D'
 				&& ChunkType[3] == 'R'){
-					// TODO: handle data chunk
+					if(IHDRTaken == true){goto NextChunk;}
+					// datachunk already taken and we only read the first image
+					IHDRTaken = true;
 					uint32_t datapos = 0;
 					// get width
 					CharVoodoo = (uint8_t*)&ReturnImage.Size.Width;
@@ -997,7 +994,7 @@ StomaImagePack::Image Read_png(std::string NAM,StomaImagePack::GroupType TYPE) {
 						CharVoodoo[i] = ChunkData[datapos];datapos++;
 					}
 					// get bit depth
-					CharVoodoo = (uint8_t*)&BitDepth;
+					CharVoodoo = (uint8_t*)&BitsPerColourChannel;
 					for(uint32_t i = 0;i<1;i++){
 						CharVoodoo[i] = ChunkData[datapos];datapos++;
 					}
@@ -1058,15 +1055,78 @@ StomaImagePack::Image Read_png(std::string NAM,StomaImagePack::GroupType TYPE) {
 				// endof handling this chunk
 			}		
 		}
+		// handle data
+		/*
+		Color type			Channels	Bits per channel
+										1	2	4	8	16
+		Indexed				1			1	2	4	8	
+		Grayscale			1			1	2	4	8	16
+		Grayscale and alpha	2						16	32
+		Truecolor			3						24	48
+		Truecolor and alpha	4						32	64
+		*/
+		
+		switch (ColourType) {
+			// rgb = 2
+			// rgba = 6
+			case(2):{goto HandleRGB;}
+			case(6):{
+				HandleRGB:;
+				uint8_t ColourStep;
+				if(ColourType == 6){
+					ColourStep = 4;
+				}else{
+					ColourStep = 3;
+				}
+				uint32_t current = 0;
+				uint32_t target = ReturnImage.Size.Width*ReturnImage.Size.Height;
+				ReturnImage.Pixels = {};
+				if(BitsPerColourChannel == 16){
+					target*=2;
+					// doubles the target to allow for skipping minors
+					// so for BPCC of 16 is
+					//    major	   minor
+					// [uint64_t][uint64_t]
+					// but BPCC of 8 is 
+					//    major
+					// [uint64_t]
+					// as uint64_t is 8 bytes
+				}
+				// colours are floats
+				std::vector<StomaImagePack::Colour> colours{};
+				StomaImagePack::Colour TransposingColour;
+				while(current<target){
+					TransposingColour.R = ColourData[(current*ColourStep)+0];
+					TransposingColour.G = ColourData[(current*ColourStep)+1];
+					TransposingColour.B = ColourData[(current*ColourStep)+2];
+					if(ColourStep == 4){TransposingColour.A = ColourData[(current*ColourStep)+3];}
+					else{TransposingColour.A = -1;}
+					ReturnImage.Pixels.push_back(TransposingColour);
+					if(BitsPerColourChannel == 16){current+=2;}else{current++;}
+				}
+				
+				break;
+			};
+
+			// greyscale
+			case(0):{};
+			// greyscale + alpha
+			case(4):{};
+
+			// indexed pallete
+			case(3):{};
+
+			default:{
+				printf("png has an invalid colour type of %i \n",ColourType);
+				exit(ExitCode::CUSTOMPNGREADERROREXIT);
+			};
+
+		}
 	}
 	
-
-
-
-	
-
-
-	exit(99);
+	// --output ./ExamplesOutput --shift --name Shifted_ExampleA ./ExamplesData/Textures/ExampleA.png
+	//exit(99);
+	// NOTE: reading seems to work now i just need to write files
 	#endif
 	return ReturnImage;// returns read image 
 }
