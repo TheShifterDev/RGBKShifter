@@ -32,3 +32,26 @@
 * simplified internals to process on read
 * allow for some files to be palleted with one file and others with another
 * simplify "launch" to serve as usage examples
+
+## FAQ
+# Q: what is RGBKShifter
+It was originaly a program for pushing image colours to the extremes so that
+they could be used in colour replacement shaders for a failed unity project
+I dabbled with but over time I thought it could be good c++ practice for
+potential jobs and maybe a tool for others wanting a simmilar applicaiton
+eventualy changing into an example project for stoma image pack (stimpac)
+image file format usage
+
+# Q: why a bespoke format and not a series of pngs
+A series of pngs would be cumbersome to read and push into gpu memory
+indevidualy, also gpu texture slots are limited so having all textures of
+a type be in a singular pretiled image is better overall and what most games
+have anyway.
+
+# Q: why did you handroll png reading
+I started running into issuess with glibc when using png++ suddenly
+(while working on ttf reading) and had various frustrations with libpng,
+its docs are garbage and required me looking at the spec for 2 different projects
+for clues on how functions were supposed to be used and it does nothing
+to actualy help the user to read png files, just changed the problem to 
+a different type of problem with additional confusion.

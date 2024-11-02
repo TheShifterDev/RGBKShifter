@@ -1066,18 +1066,17 @@ StomaImagePack::Image Read_png(std::string NAM,StomaImagePack::GroupType TYPE) {
 		Truecolor and alpha	4						32	64
 		*/
 		
+		uint8_t ColourStep;
 		switch (ColourType) {
 			// rgb = 2
 			// rgba = 6
-			case(2):{goto HandleRGB;}
+			case(2):{
+				ColourStep = 3;
+				goto HandleRGB;
+			}
 			case(6):{
+				ColourStep = 4;
 				HandleRGB:;
-				uint8_t ColourStep;
-				if(ColourType == 6){
-					ColourStep = 4;
-				}else{
-					ColourStep = 3;
-				}
 				uint32_t current = 0;
 				uint32_t target = ReturnImage.Size.Width*ReturnImage.Size.Height;
 				ReturnImage.Pixels = {};
@@ -1214,5 +1213,94 @@ void Write_png(StomaImagePack::Image IMG, std::string NAM) {
 		fclose(SourceFilePtr);
 		png_destroy_write_struct(&PngDataPtr, &PngInfoPtr);
 	}
+	#else
+	// create charbuffer with header
+	std::vector<uint8_t> CharBuffer{
+		0x89,0x50,0x4E,0x47,
+		0x0D,0x0A,0x1A,0x0A};
+	uint8_t* CharVoodoo;
+	uint32_t Length;
+	// write info chunk
+	{
+		// length
+		// 13 for IHDR
+		Length = 13;
+		CharVoodoo = (uint8_t*)&Length;
+		for(uint32_t i=0;i<4;i++){CharBuffer.push_back(CharVoodoo[i]);}
+		// type
+		CharBuffer.push_back('I');
+		CharBuffer.push_back('H');
+		CharBuffer.push_back('D');
+		CharBuffer.push_back('R');
+		// data
+		CharVoodoo = (uint8_t*)&IMG.Size.Width;
+		for(uint32_t i=0;i<4;i++){CharBuffer.push_back(CharVoodoo[i]);}
+		CharVoodoo = (uint8_t*)&IMG.Size.Height;
+		for(uint32_t i=0;i<4;i++){CharBuffer.push_back(CharVoodoo[i]);}
+		CharBuffer.push_back(8); // always write 8 bitdepth
+		CharBuffer.push_back(6); // always write RGBA
+		CharBuffer.push_back(0); // always no compression 
+		CharBuffer.push_back(0); // always no filter
+		CharBuffer.push_back(0); // always no interlace
+		// CRC
+		// TODO: do this properly
+		// HACK: bogus crc
+		for(uint32_t i=0;i<4;i++){CharBuffer.push_back(0);}
+	}
+	// write data chunk
+	{
+		uint32_t t_pixelcount = (IMG.Size.Width*IMG.Size.Height);
+		uint32_t t_pixelements = 4;// 4 as rgba 
+		uint32_t t_charperelement = 1;// 1 as using uint8_t for colours 
+		// length
+		Length = t_pixelcount*t_pixelements*t_charperelement;
+		CharVoodoo = (uint8_t*)&Length;
+		for(uint32_t i=0;i<4;i++){CharBuffer.push_back(CharVoodoo[i]);}
+		// type
+		CharBuffer.push_back('I');
+		CharBuffer.push_back('D');
+		CharBuffer.push_back('A');
+		CharBuffer.push_back('T');
+		// data
+		for (uint32_t i = 0;i<t_pixelcount;i++) {
+			CharBuffer.push_back(IMG.Pixels[i].R);
+			CharBuffer.push_back(IMG.Pixels[i].G);
+			CharBuffer.push_back(IMG.Pixels[i].B);
+			CharBuffer.push_back(IMG.Pixels[i].A);
+		}
+		// CRC
+		// TODO: do this properly
+		// HACK: bogus crc
+		for(uint32_t i=0;i<4;i++){CharBuffer.push_back(0);}
+	}
+	// write end chunk
+	{
+		// length
+		// NOTE: end always has 0 length
+		Length = 0;
+		CharVoodoo = (uint8_t*)&Length;
+		for(uint32_t i=0;i<4;i++){CharBuffer.push_back(CharVoodoo[i]);}
+		// type
+		CharBuffer.push_back('I');
+		CharBuffer.push_back('H');
+		CharBuffer.push_back('D');
+		CharBuffer.push_back('R');
+		// data
+		// NOTE: end always has 0 data
+		// CRC
+		// TODO: do this properly
+		// HACK: bogus crc
+		for(uint32_t i=0;i<4;i++){CharBuffer.push_back(0);}
+	}
+	// open file
+	std::ofstream WriteFile(NAM + ".png",std::ios::binary);
+	// write charbuffer
+	WriteFile.write((char*)CharBuffer.data(),CharBuffer.size());
+	// close file
+	WriteFile.close();
+	
+	
+
+	//
 	#endif
 }
