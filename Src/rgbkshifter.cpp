@@ -6,7 +6,8 @@
 
 #ifdef USING_PNGPP
 #include <png++/png.hpp> // local install via pacman
-#elif USING_LIBPNG
+#endif
+#ifdef USING_LIBPNG
 #include <libpng16/png.h>
 // ALIASES
 #define PNG_COLOR_TYPE_GREY PNG_COLOR_TYPE_GRAY
@@ -22,7 +23,8 @@
 #define PNG_COLOUR_TYPE_PALETTE PNG_COLOR_TYPE_PALETTE
 
 inline void png_set_grey_to_rgb(png_structp A){png_set_gray_to_rgb(A);}
-#else
+#endif
+#ifdef USING_PNGHANDROLLED
 // fallback handcoded png reading
 
 
@@ -39,6 +41,8 @@ enum ExitCode{
 	NOERROR = 0,
 	NOARGS,
 	INVALIDOUTPUTFILEFORMAT,
+	FILECORRUPTION,
+
 	FREETYPEERROREXIT,
 
 	LIBPNGREADERROREXIT,
@@ -345,6 +349,88 @@ std::vector<StomaImagePack::Image> SeperateGlyphs(std::vector<StomaImagePack::Im
 }
 // clang-format on
 
+StomaImagePack::Image TrimImage(StomaImagePack::Image INPUT){
+	StomaImagePack::Image OutputImage;
+	// ---------------------------TRIM--------------------------------//
+	// construct a atlas of occupied points
+	std::vector<bool> OccupiedPixels{};
+	StomaImagePack::Glyph* CurrentGlyph;
+	uint32_t NewPoint,OldPoint;
+	uint32_t XPos;
+	uint32_t YPos;
+	uint32_t CropWSize; 
+	uint32_t CropHSize;
+	
+	OccupiedPixels.resize(INPUT.Pixels.size());
+	for (uint32_t gr=0; gr<INPUT.Groups.size();gr++) {
+	for (uint32_t gl=0; gl<INPUT.Groups[gr].Glyphs.size();gl++) {
+		CurrentGlyph = &INPUT.Groups[gr].Glyphs[gl];
+		if((CurrentGlyph->Size.Width+CurrentGlyph->Offset.Width)>INPUT.Size.Width
+		|| (CurrentGlyph->Size.Width+CurrentGlyph->Offset.Width)>INPUT.Size.Width){
+			printf("Trim Image oob check for Group[%i].glyph[%i] is oob as xoff[%i] + xsiz[%i] > imgxsize[%i] or yoff[%i] + ysiz[%i] > imgysize[%i]\n",
+					gr,gl,
+					CurrentGlyph->Offset.Width,
+					CurrentGlyph->Size.Width,
+					INPUT.Size.Width,
+					CurrentGlyph->Offset.Height,
+					CurrentGlyph->Size.Height,
+					INPUT.Size.Height);
+			exit(ExitCode::FILECORRUPTION);
+		}
+		if((CurrentGlyph->Size.Width*CurrentGlyph->Size.Height)!=0){
+				// TODO: fill out Occupied pixels
+			for (uint32_t Y=0;Y<CurrentGlyph->Size.Height;Y++) {
+			for (uint32_t X=0;X<CurrentGlyph->Size.Width;X++) {
+				XPos = CurrentGlyph->Offset.Width + X;
+				YPos = CurrentGlyph->Offset.Height + Y;
+				OldPoint = GetCoordinate(XPos, YPos, INPUT.Pixels.size());
+				OccupiedPixels[OldPoint] = true;
+			}}
+		}
+	}}
+	CropWSize = INPUT.Size.Width;
+	CropHSize = INPUT.Size.Height;
+	// get true used Heigth/Rows
+	while (CropHSize > 1) {
+		for(uint32_t w=0;w<CropWSize;w++){
+			if (OccupiedPixels[GetCoordinate(w,CropHSize-1, INPUT.Size.Width)]){
+				goto PixelRowOccupiedBreakout;
+			}
+		}
+		CropHSize--;
+	}
+	PixelRowOccupiedBreakout:;
+	// get true used Width/Columns
+	while (CropWSize > 1) {
+		for(uint32_t h=0;h<CropHSize;h++){
+			if (OccupiedPixels[GetCoordinate(CropWSize-1 , h, INPUT.Size.Width)]){
+				goto PixelColumnOccupiedBreakout;
+			}
+		}
+		CropHSize--;
+	}
+	PixelColumnOccupiedBreakout:;
+	// check if there are rows or columns to trim
+	OutputImage.Pixels.resize(CropWSize*CropHSize);
+	if(CropWSize == 0|| CropHSize == 0){
+		printf("croped sizes are invalid w:%i and h:%i\n",CropWSize,CropHSize);
+	}
+
+	if(CropWSize != INPUT.Size.Width 
+	|| CropHSize != INPUT.Size.Height){
+		// transpose canvas pixels onto trimmed output image
+		for(YPos = 0; YPos < CropHSize; YPos++) {
+		for(XPos = 0; XPos < CropWSize; XPos++) {
+			NewPoint = GetCoordinate(XPos,YPos,CropWSize);
+			OldPoint = GetCoordinate(XPos,YPos,INPUT.Size.Width);
+			OutputImage.Pixels[NewPoint] = INPUT.Pixels[OldPoint];
+		}}
+		OutputImage.Size = {CropWSize,CropHSize};
+	}
+
+	return OutputImage;
+}
+
 StomaImagePack::Image
 MergeImages(std::vector<StomaImagePack::Image> SUBIMAGES) {
 	StomaImagePack::Image OutputImage;
@@ -402,99 +488,59 @@ MergeImages(std::vector<StomaImagePack::Image> SUBIMAGES) {
 			}
 		}
 	for (uint32_t gl = 0;gl < SUBIMAGES[im].Groups[gr].Glyphs.size();gl++) {
-		// check if its safe to draw in position
-		for(uint32_t MYPos = 0; MYPos < MaxHRequired; MYPos++) {
-		for(uint32_t MXPos = 0; MXPos < MaxWRequired; MXPos++) {
-			// test if first pixel is empty
-			if (Occupied[GetCoordinate(MXPos,MYPos,MaxWRequired)] == false) {
-				DrawSafe = true;
-				// check if position collides with previously written positions
-				for(uint32_t SYPos=0;SYPos<SUBIMAGES[im].Groups[gr].Glyphs[gl].Size.Height;SYPos++){
-				for(uint32_t SXPos=0;SXPos<SUBIMAGES[im].Groups[gr].Glyphs[gl].Size.Width ;SXPos++){
-					if(Occupied[GetCoordinate(MXPos + SXPos,MYPos + SYPos,MaxWRequired)] == true){
-						DrawSafe = false;
-						goto AlreadyWrittenBreakout;
-					}
-				}}
-				AlreadyWrittenBreakout:;
-				if (DrawSafe){
-					uint32_t MPoint,SPoint;
-					// draw
+		// check if glyph is bogus
+		if((SUBIMAGES[im].Groups[gr].Glyphs[gl].Size.Width*SUBIMAGES[im].Groups[gr].Glyphs[gl].Size.Width) != 0){
+			// check if its safe to draw in position
+			for(uint32_t MYPos = 0; MYPos < MaxHRequired; MYPos++) {
+			for(uint32_t MXPos = 0; MXPos < MaxWRequired; MXPos++) {
+				// test if first pixel is empty
+				if (Occupied[GetCoordinate(MXPos,MYPos,MaxWRequired)] == false) {
+					DrawSafe = true;
+					// check if position collides with previously written positions
 					for(uint32_t SYPos=0;SYPos<SUBIMAGES[im].Groups[gr].Glyphs[gl].Size.Height;SYPos++){
 					for(uint32_t SXPos=0;SXPos<SUBIMAGES[im].Groups[gr].Glyphs[gl].Size.Width ;SXPos++){
-						MPoint = GetCoordinate(MXPos + SXPos,MYPos + SYPos,MaxWRequired);
-						SPoint = GetCoordinate(SXPos, SYPos, SUBIMAGES[im].Groups[gr].Glyphs[gl].Size.Width);
-						Canvas[MPoint] = SUBIMAGES[im].Pixels[SPoint];
-						Occupied[MPoint] = true;
+						if(Occupied[GetCoordinate(MXPos + SXPos,MYPos + SYPos,MaxWRequired)] == true){
+							DrawSafe = false;
+							goto AlreadyWrittenBreakout;
+						}
 					}}
-					
-					// place glyph
-					
-					StomaImagePack::Glyph TransposingGlyph = {};
-					TransposingGlyph.Name = SUBIMAGES[im].Groups[gr].Glyphs[gl].Name;
-					TransposingGlyph.Offset.Width	= MXPos;
-					TransposingGlyph.Offset.Height	= MYPos;
-					TransposingGlyph.Size 			= SUBIMAGES[im].Groups[gr].Glyphs[gl].Size;
-								
-					OutputImage.Groups[CurrentGroup].Glyphs.push_back(TransposingGlyph);
-					goto NextGlyph;
+					AlreadyWrittenBreakout:;
+					if (DrawSafe){
+						uint32_t MPoint,SPoint;
+						// draw
+						for(uint32_t SYPos=0;SYPos<SUBIMAGES[im].Groups[gr].Glyphs[gl].Size.Height;SYPos++){
+						for(uint32_t SXPos=0;SXPos<SUBIMAGES[im].Groups[gr].Glyphs[gl].Size.Width ;SXPos++){
+							MPoint = GetCoordinate(MXPos + SXPos,MYPos + SYPos,MaxWRequired);
+							SPoint = GetCoordinate(SXPos, SYPos, SUBIMAGES[im].Groups[gr].Glyphs[gl].Size.Width);
+							Canvas[MPoint] = SUBIMAGES[im].Pixels[SPoint];
+							Occupied[MPoint] = true;
+						}}
+						
+						// place glyph
+						
+						StomaImagePack::Glyph TransposingGlyph = {};
+						TransposingGlyph.Name = SUBIMAGES[im].Groups[gr].Glyphs[gl].Name;
+						TransposingGlyph.Offset.Width	= MXPos;
+						TransposingGlyph.Offset.Height	= MYPos;
+						TransposingGlyph.Size 			= SUBIMAGES[im].Groups[gr].Glyphs[gl].Size;
+									
+						OutputImage.Groups[CurrentGroup].Glyphs.push_back(TransposingGlyph);
+						goto NextGlyph;
+					}
 				}
-			}
-		}}
-	}
+			}}
+		}
 	// endof glyph
 	NextGlyph:;
+	}
 	}
 	// endof group
 	}
 	// endof image
 	#endif
 	// clang-format off
-	// ---------------------------TRIM--------------------------------//
-	// Trim unused lines or collumns
-	uint32_t CropWSize = MaxWRequired;
-	uint32_t CropHSize = MaxHRequired;
+
 	
-	//StomaImagePack::Resolution CropSize = OutputImage.Size;
-	// get true used Heigth/Rows
-	while (CropHSize > 1) {
-		for(uint32_t w=0;w<CropWSize;w++){
-			if (Occupied[GetCoordinate(w,CropHSize-1, MaxWRequired)]){
-				goto PixelRowOccupiedBreakout;
-			}
-		}
-		CropHSize--;
-	}
-	PixelRowOccupiedBreakout:;
-	// get true used Width/Columns
-	while (CropWSize > 1) {
-		for(uint32_t h=0;h<CropHSize;h++){
-			if (Occupied[GetCoordinate(CropWSize-1 , h, MaxWRequired)]){
-				goto PixelColumnOccupiedBreakout;
-			}
-		}
-		CropHSize--;
-	}
-	PixelColumnOccupiedBreakout:;
-	// check if there are rows or columns to trim
-	uint32_t NewPoint,OldPoint;
-	OutputImage.Pixels.resize(CropWSize*CropHSize);
-	if(CropWSize != MaxWRequired 
-	|| CropHSize != MaxHRequired){
-		// transpose canvas pixels onto trimmed output image
-		for(uint32_t YPos = 0; YPos < CropHSize; YPos++) {
-		for(uint32_t XPos = 0; XPos < CropWSize; XPos++) {
-			NewPoint = GetCoordinate(XPos,YPos,CropWSize);
-			OldPoint = GetCoordinate(XPos,YPos,MaxWRequired);
-			OutputImage.Pixels[NewPoint] = Canvas[OldPoint];
-		}}
-		OutputImage.Size = {CropWSize,CropHSize};
-	}else{
-		// space is efficantly used already so just feed canvas to Image
-		for(uint32_t i=0;i<OutputImage.Size.Width*OutputImage.Size.Height;i++){
-			OutputImage.Pixels[i] = Canvas[i];
-		}
-	}
 	
 	return OutputImage;
 	// clang-format on
@@ -731,17 +777,10 @@ StomaImagePack::Image Read_ttf(std::string NAM) {
 	
 	return ReturnImage;
 }
-#ifdef USING_LIBPNG
-// NOTE: based on https://refspecs.linuxbase.org/LSB_3.1.0/LSB-Desktop-generic/LSB-Desktop-generic/libpng12.png.create.read.struct.1.html
-// and https://www.freepascal.org/daily/packages/libpng/png/png_error_ptr.html
-// as libpng docs are obnoxious
-void PNG_ErrorCallback(png_struct* P,char* C){
 
-}
-void PNG_WarnCallback(png_struct* P,char* C){
-	
-}
-#endif
+// -------------------------------------PNG++
+
+#ifdef USING_PNGPP
 StomaImagePack::Image Read_png(std::string NAM,StomaImagePack::GroupType TYPE) {
 	// assumes .png has been trimmed off
 	// NOTE: using pngpp as libpng is a classic needlessly complex library
@@ -752,7 +791,6 @@ StomaImagePack::Image Read_png(std::string NAM,StomaImagePack::GroupType TYPE) {
 	
 	std::string FileName = NAM+".png";
 	printf("'FileName' = %s\n",FileName.c_str());
-	#ifdef USING_PNGPP
 	{
 		png::rgba_pixel HoldPixel;
 		png::image<png::rgba_pixel> PngFile(NAM + ".png");
@@ -778,7 +816,49 @@ StomaImagePack::Image Read_png(std::string NAM,StomaImagePack::GroupType TYPE) {
 			ReturnImage.Pixels[HoldPosition].A = HoldPixel.alpha;
 		}}
 	}
-	#elif USING_LIBPNG
+	return ReturnImage;// returns read image 
+}
+void Write_png(StomaImagePack::Image IMG, std::string NAM) {
+	if((IMG.Size.Width*IMG.Size.Height) != (uint32_t)IMG.Pixels.size()){
+		printf("write_png has recived a StomaImagePack::Image with size corruption w:%i,h:%i > pc:%i",
+		IMG.Size.Width,IMG.Size.Height,(uint32_t)IMG.Pixels.size());
+		exit(ExitCode::FILECORRUPTION);
+	}
+	{
+		png::image<png::rgba_pixel> WriteFile;
+		if(WriteFile.get_width() != IMG.Size.Width
+		|| WriteFile.get_height()!= IMG.Size.Height){
+			WriteFile.resize(IMG.Size.Width, IMG.Size.Height);
+		}
+		png::rgba_pixel HoldPixel;
+		uint32_t CurrentCoordinate;
+		for(uint32_t h = 0; h < IMG.Size.Height; h++) {
+		for(uint32_t w = 0; w < IMG.Size.Width; w++) {
+			CurrentCoordinate = GetCoordinate(w, h, IMG.Size.Width);
+			HoldPixel.red = 	IMG.Pixels[CurrentCoordinate].R;
+			HoldPixel.green = 	IMG.Pixels[CurrentCoordinate].G;
+			HoldPixel.blue = 	IMG.Pixels[CurrentCoordinate].B;
+			HoldPixel.alpha = 	IMG.Pixels[CurrentCoordinate].A;
+			WriteFile.set_pixel(w, h, HoldPixel);
+		}}
+		WriteFile.write(NAM + ".png");
+	}
+}
+#endif
+
+// -------------------------------------LIBPNG
+
+#ifdef USING_LIBPNG
+StomaImagePack::Image Read_png(std::string NAM,StomaImagePack::GroupType TYPE) {
+	// assumes .png has been trimmed off
+	// NOTE: using pngpp as libpng is a classic needlessly complex library
+	StomaImagePack::Image ReturnImage;
+	std::string SourceDir;
+	std::string GlyphName;
+	uint32_t HoldPosition;
+	
+	std::string FileName = NAM+".png";
+	printf("'FileName' = %s\n",FileName.c_str());
 	{
 		// NOTE: libpng is by far the most obnoxiusly obtuse garbage ever
 		// NOTE: based on https://jeromebelleman.gitlab.io/posts/devops/libpng/
@@ -879,7 +959,101 @@ StomaImagePack::Image Read_png(std::string NAM,StomaImagePack::GroupType TYPE) {
 		png_destroy_read_struct(&PngDataPtr,&PngInfoPtr,NULL);
 		// return
 	}
-	#else
+		return ReturnImage;// returns read image 
+}
+
+// NOTE: based on https://refspecs.linuxbase.org/LSB_3.1.0/LSB-Desktop-generic/LSB-Desktop-generic/libpng12.png.create.read.struct.1.html
+// and https://www.freepascal.org/daily/packages/libpng/png/png_error_ptr.html
+// as libpng docs are obnoxious
+void PNG_ErrorCallback(png_struct* P,char* C){
+
+}
+void PNG_WarnCallback(png_struct* P,char* C){
+	
+}
+void Write_png(StomaImagePack::Image IMG, std::string NAM) {
+	if((IMG.Size.Width*IMG.Size.Height) != (uint32_t)IMG.Pixels.size()){
+		printf("write_png has recived a StomaImagePack::Image with size corruption w:%i,h:%i > pc:%i",
+		IMG.Size.Width,IMG.Size.Height,(uint32_t)IMG.Pixels.size());
+		exit(ExitCode::FILECORRUPTION);
+	}
+	{
+		uint32_t HoldPosition;
+		std::string FileName = NAM+".png";
+
+		FILE* SourceFilePtr;
+		png_struct* PngDataPtr;
+		png_info* PngInfoPtr;
+    
+		printf("'FileName' = %s\n",FileName.c_str());
+		SourceFilePtr = fopen(FileName.c_str(),"wb");
+		if(SourceFilePtr == nullptr){
+			printf("'SourceFilePtr' is nullptr\n");
+			exit((uint32_t)ExitCode::LIBPNGWRITEERROREXIT);
+		}
+		PngDataPtr = png_create_write_struct(PNG_LIBPNG_VER_STRING,NULL,NULL,NULL);
+		if(PngDataPtr == nullptr){
+			printf("'PngDataPtr' is nullptr\n");
+			exit((uint32_t)ExitCode::LIBPNGWRITEERROREXIT);
+		}
+		PngInfoPtr = png_create_info_struct(PngDataPtr);
+		if(PngInfoPtr == nullptr){
+			printf("'PngInfoPtr' is nullptr\n");
+			exit((uint32_t)ExitCode::LIBPNGWRITEERROREXIT);
+		}
+		// NOTE: due to setjmp failing constantly its commented
+		//if(setjmp(png_jmpbuf(PngDataPtr))){
+		//	printf("png write 'setjmp' failed\n");
+		//	exit((uint32_t)ExitCode::LIBPNGWRITEERROREXIT);
+		//}
+		png_init_io(PngDataPtr,SourceFilePtr);
+		png_set_IHDR(PngDataPtr,PngInfoPtr,
+		IMG.Size.Width,IMG.Size.Height,8,
+		PNG_COLOUR_TYPE_RGBA,
+		PNG_INTERLACE_NONE,
+		PNG_COMPRESSION_TYPE_DEFAULT,
+		PNG_FILTER_TYPE_DEFAULT);
+		png_write_info(PngDataPtr,PngInfoPtr);
+    
+		png_byte** RowDataPtrPtr = (png_byte**)malloc(sizeof(png_byte*)*IMG.Size.Height);
+		size_t t_rowbyte = png_get_rowbytes(PngDataPtr,PngInfoPtr);
+		// dump pixel data into image data 
+		for(uint32_t i = 0;i<IMG.Size.Height;i++){
+			RowDataPtrPtr[i] = (png_byte*)malloc(t_rowbyte);
+		}
+		for(uint32_t h = 0; h < IMG.Size.Height; h++) {
+		for(uint32_t w = 0; w < IMG.Size.Width; w++) {
+			HoldPosition = GetCoordinate(w, h, IMG.Size.Width);
+			RowDataPtrPtr[h][(w*4)+0] = IMG.Pixels[HoldPosition].R;
+			RowDataPtrPtr[h][(w*4)+1] = IMG.Pixels[HoldPosition].G;
+			RowDataPtrPtr[h][(w*4)+2] = IMG.Pixels[HoldPosition].B;
+			RowDataPtrPtr[h][(w*4)+3] = IMG.Pixels[HoldPosition].A;
+		}}
+		png_write_image(PngDataPtr, RowDataPtrPtr);
+		png_write_end(PngDataPtr, NULL);
+    
+		for(uint32_t i = 0;i<IMG.Size.Height;i++){
+			free(RowDataPtrPtr[i]);
+		}
+		free(RowDataPtrPtr);
+		fclose(SourceFilePtr);
+		png_destroy_write_struct(&PngDataPtr, &PngInfoPtr);
+	}
+}
+#endif
+
+// -------------------------------------HANDROLLED
+
+#ifdef USING_PNGHANDROLLED
+StomaImagePack::Image Read_png(std::string NAM,StomaImagePack::GroupType TYPE) {
+	// assumes .png has been trimmed off
+	// NOTE: using pngpp as libpng is a classic needlessly complex library
+	StomaImagePack::Image ReturnImage;
+	std::string SourceDir;
+	std::string GlyphName;
+	
+	std::string FileName = NAM+".png";
+	printf("'FileName' = %s\n",FileName.c_str());
 	// reads entire file to char array
 	std::ifstream ReadFile;
 	std::vector<uint8_t> CharVector;
@@ -1126,94 +1300,17 @@ StomaImagePack::Image Read_png(std::string NAM,StomaImagePack::GroupType TYPE) {
 	// --output ./ExamplesOutput --shift --name Shifted_ExampleA ./ExamplesData/Textures/ExampleA.png
 	//exit(99);
 	// NOTE: reading seems to work now i just need to write files
-	#endif
 	return ReturnImage;// returns read image 
 }
-void Write_png(StomaImagePack::Image IMG, std::string NAM) {
-	#ifdef USING_PNGPP
-	{
-		png::image<png::rgba_pixel> WriteFile;
-		if(WriteFile.get_width() != IMG.Size.Width
-		|| WriteFile.get_height()!= IMG.Size.Height){
-			WriteFile.resize(IMG.Size.Width, IMG.Size.Height);
-		}
-		png::rgba_pixel HoldPixel;
-		uint32_t CurrentCoordinate;
-		for(uint32_t h = 0; h < IMG.Size.Height; h++) {
-		for(uint32_t w = 0; w < IMG.Size.Width; w++) {
-			CurrentCoordinate = GetCoordinate(w, h, IMG.Size.Width);
-			HoldPixel.red = 	IMG.Pixels[CurrentCoordinate].R;
-			HoldPixel.green = 	IMG.Pixels[CurrentCoordinate].G;
-			HoldPixel.blue = 	IMG.Pixels[CurrentCoordinate].B;
-			HoldPixel.alpha = 	IMG.Pixels[CurrentCoordinate].A;
-			WriteFile.set_pixel(w, h, HoldPixel);
-		}}
-		WriteFile.write(NAM + ".png");
-	}
-	#elif USING_LIBPNG
-	{
-		uint32_t HoldPosition;
-		std::string FileName = NAM+".png";
 
-		FILE* SourceFilePtr;
-		png_struct* PngDataPtr;
-		png_info* PngInfoPtr;
-    
-		printf("'FileName' = %s\n",FileName.c_str());
-		SourceFilePtr = fopen(FileName.c_str(),"wb");
-		if(SourceFilePtr == nullptr){
-			printf("'SourceFilePtr' is nullptr\n");
-			exit((uint32_t)ExitCode::LIBPNGWRITEERROREXIT);
-		}
-		PngDataPtr = png_create_write_struct(PNG_LIBPNG_VER_STRING,NULL,NULL,NULL);
-		if(PngDataPtr == nullptr){
-			printf("'PngDataPtr' is nullptr\n");
-			exit((uint32_t)ExitCode::LIBPNGWRITEERROREXIT);
-		}
-		PngInfoPtr = png_create_info_struct(PngDataPtr);
-		if(PngInfoPtr == nullptr){
-			printf("'PngInfoPtr' is nullptr\n");
-			exit((uint32_t)ExitCode::LIBPNGWRITEERROREXIT);
-		}
-		// NOTE: due to setjmp failing constantly its commented
-		//if(setjmp(png_jmpbuf(PngDataPtr))){
-		//	printf("png write 'setjmp' failed\n");
-		//	exit((uint32_t)ExitCode::LIBPNGWRITEERROREXIT);
-		//}
-		png_init_io(PngDataPtr,SourceFilePtr);
-		png_set_IHDR(PngDataPtr,PngInfoPtr,
-		IMG.Size.Width,IMG.Size.Height,8,
-		PNG_COLOUR_TYPE_RGBA,
-		PNG_INTERLACE_NONE,
-		PNG_COMPRESSION_TYPE_DEFAULT,
-		PNG_FILTER_TYPE_DEFAULT);
-		png_write_info(PngDataPtr,PngInfoPtr);
-    
-		png_byte** RowDataPtrPtr = (png_byte**)malloc(sizeof(png_byte*)*IMG.Size.Height);
-		size_t t_rowbyte = png_get_rowbytes(PngDataPtr,PngInfoPtr);
-		// dump pixel data into image data 
-		for(uint32_t i = 0;i<IMG.Size.Height;i++){
-			RowDataPtrPtr[i] = (png_byte*)malloc(t_rowbyte);
-		}
-		for(uint32_t h = 0; h < IMG.Size.Height; h++) {
-		for(uint32_t w = 0; w < IMG.Size.Width; w++) {
-			HoldPosition = GetCoordinate(w, h, IMG.Size.Width);
-			RowDataPtrPtr[h][(w*4)+0] = IMG.Pixels[HoldPosition].R;
-			RowDataPtrPtr[h][(w*4)+1] = IMG.Pixels[HoldPosition].G;
-			RowDataPtrPtr[h][(w*4)+2] = IMG.Pixels[HoldPosition].B;
-			RowDataPtrPtr[h][(w*4)+3] = IMG.Pixels[HoldPosition].A;
-		}}
-		png_write_image(PngDataPtr, RowDataPtrPtr);
-		png_write_end(PngDataPtr, NULL);
-    
-		for(uint32_t i = 0;i<IMG.Size.Height;i++){
-			free(RowDataPtrPtr[i]);
-		}
-		free(RowDataPtrPtr);
-		fclose(SourceFilePtr);
-		png_destroy_write_struct(&PngDataPtr, &PngInfoPtr);
+
+//
+void Write_png(StomaImagePack::Image IMG, std::string NAM) {
+	if((IMG.Size.Width*IMG.Size.Height) != (uint32_t)IMG.Pixels.size()){
+		printf("write_png has recived a StomaImagePack::Image with size corruption w:%i,h:%i > pc:%i\n",
+		IMG.Size.Width,IMG.Size.Height,(uint32_t)IMG.Pixels.size());
+		exit(ExitCode::FILECORRUPTION);
 	}
-	#else
 	// create charbuffer with header
 	std::vector<uint8_t> CharBuffer{
 		0x89,0x50,0x4E,0x47,
@@ -1302,5 +1399,5 @@ void Write_png(StomaImagePack::Image IMG, std::string NAM) {
 	
 
 	//
-	#endif
 }
+#endif
