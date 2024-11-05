@@ -3,39 +3,18 @@
 #include <cstdio>
 #define STOMAIMAGEPACK_IMPLEM
 #include <StomaImagePack/StomaImagePack.hh>
-
 #ifdef USING_PNGPP
 #include <png++/png.hpp> // local install via pacman
-#endif
-#ifdef USING_LIBPNG
-#include <libpng16/png.h>
-// ALIASES
-#define PNG_COLOR_TYPE_GREY PNG_COLOR_TYPE_GRAY
-#define PNG_COLOUR_TYPE_GREY PNG_COLOR_TYPE_GRAY
-#define PNG_COLOUR_TYPE_GRAY PNG_COLOR_TYPE_GRAY
-
-#define PNG_COLOR_TYPE_GREY_ALPHA PNG_COLOR_TYPE_GRAY_ALPHA
-#define PNG_COLOUR_TYPE_GREY_ALPHA PNG_COLOR_TYPE_GRAY_ALPHA
-#define PNG_COLOUR_TYPE_GRAY_ALPHA PNG_COLOR_TYPE_GRAY_ALPHA
-
-#define PNG_COLOUR_TYPE_RGB PNG_COLOR_TYPE_RGB
-#define PNG_COLOUR_TYPE_RGBA PNG_COLOR_TYPE_RGBA
-#define PNG_COLOUR_TYPE_PALETTE PNG_COLOR_TYPE_PALETTE
-
-inline void png_set_grey_to_rgb(png_structp A){png_set_gray_to_rgb(A);}
 #endif
 #ifdef USING_PNGHANDROLLED
 // fallback handcoded png reading
 
 
 #endif
-
 #include <freetype2/ft2build.h>
 #include FT_FREETYPE_H
 
-
 #include <string>
-
 
 enum ExitCode{
 	NOERROR = 0,
@@ -45,11 +24,11 @@ enum ExitCode{
 
 	FREETYPEERROREXIT,
 
-	LIBPNGREADERROREXIT,
-	LIBPNGWRITEERROREXIT,
+	PNGPPREADERROREXIT,
+	PNGPPWRITEERROREXIT,
 
-	CUSTOMPNGREADERROREXIT,
-	CUSTOMPNGWRITEERROREXIT,
+	PNGREADERROREXIT,
+	PNGWRITEERROREXIT,
 
 	STOMAIMAGEERROREXIT,
 
@@ -433,6 +412,30 @@ StomaImagePack::Image TrimImage(StomaImagePack::Image INPUT){
 
 StomaImagePack::Image
 MergeImages(std::vector<StomaImagePack::Image> SUBIMAGES) {
+	if(SUBIMAGES.size() == 0){
+		printf("MergeImages recived 0 images \n");
+		exit(ExitCode::FILECORRUPTION);
+	}
+	{
+		bool ShouldExit = false;
+		for(uint32_t i=0;i<SUBIMAGES.size();i++){
+			if((SUBIMAGES[i].Size.Width*SUBIMAGES[i].Size.Height) == 0){
+				ShouldExit = true;
+				printf("image[%i] out of %i has an invalid w/h of w:%i h:%i\n",
+				i,
+				(uint32_t)SUBIMAGES.size(),
+				SUBIMAGES[i].Size.Width,
+				SUBIMAGES[i].Size.Height);
+			}
+			if(SUBIMAGES[i].Pixels.size() == 0){
+				ShouldExit = true;
+				printf("image[%i] out of %i has 0 pixels\n",i,(uint32_t)SUBIMAGES.size());
+			}
+		}
+		if(ShouldExit){
+			exit(ExitCode::FILECORRUPTION);
+		}
+	}
 	StomaImagePack::Image OutputImage;
 	OutputImage.Groups.resize(1); 
 	uint32_t MaxWRequired = 0;
@@ -777,7 +780,6 @@ StomaImagePack::Image Read_ttf(std::string NAM) {
 	
 	return ReturnImage;
 }
-
 // -------------------------------------PNG++
 
 #ifdef USING_PNGPP
@@ -846,203 +848,6 @@ void Write_png(StomaImagePack::Image IMG, std::string NAM) {
 }
 #endif
 
-// -------------------------------------LIBPNG
-
-#ifdef USING_LIBPNG
-StomaImagePack::Image Read_png(std::string NAM,StomaImagePack::GroupType TYPE) {
-	// assumes .png has been trimmed off
-	// NOTE: using pngpp as libpng is a classic needlessly complex library
-	StomaImagePack::Image ReturnImage;
-	std::string SourceDir;
-	std::string GlyphName;
-	uint32_t HoldPosition;
-	
-	std::string FileName = NAM+".png";
-	printf("'FileName' = %s\n",FileName.c_str());
-	{
-		// NOTE: libpng is by far the most obnoxiusly obtuse garbage ever
-		// NOTE: based on https://jeromebelleman.gitlab.io/posts/devops/libpng/
-		// and https://gist.github.com/niw/5963798
-		// TODO: get actual errors printed
-		FILE* SourceFilePtr;
-		png_struct* PngDataPtr;
-		png_info* PngInfoPtr; 
-		uint32_t width;
-		uint32_t hight;
-		uint32_t coltype;
-		uint32_t bitdept;
-		png_byte** RowDataPtrPtr;
-		size_t t_rowbyte;
-		SourceFilePtr = fopen(FileName.c_str(), "r");
-		if(SourceFilePtr == nullptr){
-			printf("'SourceFilePtr' is nullptr\n");
-			exit((uint32_t)ExitCode::LIBPNGREADERROREXIT);
-		}
-		//PngDataPtr = png_create_read_struct(PNG_LIBPNG_VER_STRING,PNG_ErrorData,PNG_ErrorCallback,PNG_WarnCallback);
-		PngDataPtr = png_create_read_struct(PNG_LIBPNG_VER_STRING,NULL,NULL,NULL);
-		if (PngDataPtr == nullptr){
-			printf("'PngDataPtr' is nullptr\n");
-			exit((uint32_t)ExitCode::LIBPNGREADERROREXIT);
-		}
-		PngInfoPtr = png_create_info_struct(PngDataPtr);
-		if (PngInfoPtr == nullptr){
-			printf("'PngInfoPtr' is nullptr\n");
-			exit((uint32_t)ExitCode::LIBPNGREADERROREXIT);
-		}
-		// NOTE: due to setjmp failing constantly its commented
-		//if(setjmp(png_jmpbuf(PngDataPtr))){
-		//	printf("png read 'setjmp' failed\n");
-		//	exit((uint32_t)ExitCode::LIBPNGREADERROREXIT);
-		//}
-		png_init_io(PngDataPtr,SourceFilePtr);
-		png_read_png(PngDataPtr,PngInfoPtr,PNG_TRANSFORM_IDENTITY,NULL);
-		width = png_get_image_width(PngDataPtr,PngInfoPtr);
-		hight = png_get_image_height(PngDataPtr,PngInfoPtr);
-		coltype = png_get_color_type(PngDataPtr,PngInfoPtr);
-		bitdept = png_get_bit_depth(PngDataPtr,PngInfoPtr);
-		// uncrap the data into rgba
-		if(bitdept == 16){
-			png_set_strip_16(PngDataPtr);
-		}
-		if(coltype == PNG_COLOR_TYPE_PALETTE){
-			png_set_palette_to_rgb(PngDataPtr);
-		}
-		if(coltype == PNG_COLOUR_TYPE_GREY && bitdept < 8){
-			png_set_expand_gray_1_2_4_to_8(PngDataPtr);
-		}
-		if(png_get_valid(PngDataPtr,PngInfoPtr,PNG_INFO_tRNS)){
-			png_set_tRNS_to_alpha(PngDataPtr);
-		}
-		if(coltype == PNG_COLOUR_TYPE_RGB
-		|| coltype == PNG_COLOUR_TYPE_GREY
-		|| coltype == PNG_COLOUR_TYPE_PALETTE){
-			png_set_filler(PngDataPtr,255,PNG_FILLER_AFTER);
-		}
-		if(coltype == PNG_COLOUR_TYPE_GREY
-		|| coltype == PNG_COLOUR_TYPE_GREY_ALPHA){
-			png_set_grey_to_rgb(PngDataPtr);
-		}
-		png_read_update_info(PngDataPtr,PngInfoPtr);
-    
-		RowDataPtrPtr = (png_byte**)malloc(sizeof(png_byte*)*hight);
-		t_rowbyte = png_get_rowbytes(PngDataPtr,PngInfoPtr);
-		for(uint32_t i = 0;i<hight;i++){
-			RowDataPtrPtr[i] = (png_byte*)malloc(t_rowbyte);
-		}
-		png_read_image(PngDataPtr,RowDataPtrPtr);
-		// convert data to intermideate format
-		ReturnImage.Size.Width = width;
-		ReturnImage.Size.Height =hight;
-		ReturnImage.Groups.resize(1);
-		ReturnImage.Groups[0].Glyphs.resize(1);
-		SliceOutLastOfChar(NAM, '/', SourceDir, GlyphName);
-		ReturnImage.Groups[0].Name = "";
-		ReturnImage.Groups[0].Type = TYPE;
-		ReturnImage.Groups[0].Glyphs[0].Name = GlyphName;
-		ReturnImage.Groups[0].Glyphs[0].Size = ReturnImage.Size;
-    
-		ReturnImage.Pixels.resize(ReturnImage.Size.Width * ReturnImage.Size.Height);
-		for(uint32_t h = 0; h < ReturnImage.Size.Height; h++) {
-		for(uint32_t w = 0; w < ReturnImage.Size.Width; w++) {
-			HoldPosition = GetCoordinate(w, h, ReturnImage.Size.Width);
-			ReturnImage.Pixels[HoldPosition].R = RowDataPtrPtr[h][(w*4)+0];
-			ReturnImage.Pixels[HoldPosition].G = RowDataPtrPtr[h][(w*4)+1];
-			ReturnImage.Pixels[HoldPosition].B = RowDataPtrPtr[h][(w*4)+2];
-			ReturnImage.Pixels[HoldPosition].A = RowDataPtrPtr[h][(w*4)+3];
-		}}
-		// cleanup
-		for(uint32_t i = 0;i<hight;i++){
-			free(RowDataPtrPtr[i]);
-		}
-		free(RowDataPtrPtr);
-		fclose(SourceFilePtr);
-		png_destroy_read_struct(&PngDataPtr,&PngInfoPtr,NULL);
-		// return
-	}
-		return ReturnImage;// returns read image 
-}
-
-// NOTE: based on https://refspecs.linuxbase.org/LSB_3.1.0/LSB-Desktop-generic/LSB-Desktop-generic/libpng12.png.create.read.struct.1.html
-// and https://www.freepascal.org/daily/packages/libpng/png/png_error_ptr.html
-// as libpng docs are obnoxious
-void PNG_ErrorCallback(png_struct* P,char* C){
-
-}
-void PNG_WarnCallback(png_struct* P,char* C){
-	
-}
-void Write_png(StomaImagePack::Image IMG, std::string NAM) {
-	if((IMG.Size.Width*IMG.Size.Height) != (uint32_t)IMG.Pixels.size()){
-		printf("write_png has recived a StomaImagePack::Image with size corruption w:%i,h:%i > pc:%i",
-		IMG.Size.Width,IMG.Size.Height,(uint32_t)IMG.Pixels.size());
-		exit(ExitCode::FILECORRUPTION);
-	}
-	{
-		uint32_t HoldPosition;
-		std::string FileName = NAM+".png";
-
-		FILE* SourceFilePtr;
-		png_struct* PngDataPtr;
-		png_info* PngInfoPtr;
-    
-		printf("'FileName' = %s\n",FileName.c_str());
-		SourceFilePtr = fopen(FileName.c_str(),"wb");
-		if(SourceFilePtr == nullptr){
-			printf("'SourceFilePtr' is nullptr\n");
-			exit((uint32_t)ExitCode::LIBPNGWRITEERROREXIT);
-		}
-		PngDataPtr = png_create_write_struct(PNG_LIBPNG_VER_STRING,NULL,NULL,NULL);
-		if(PngDataPtr == nullptr){
-			printf("'PngDataPtr' is nullptr\n");
-			exit((uint32_t)ExitCode::LIBPNGWRITEERROREXIT);
-		}
-		PngInfoPtr = png_create_info_struct(PngDataPtr);
-		if(PngInfoPtr == nullptr){
-			printf("'PngInfoPtr' is nullptr\n");
-			exit((uint32_t)ExitCode::LIBPNGWRITEERROREXIT);
-		}
-		// NOTE: due to setjmp failing constantly its commented
-		//if(setjmp(png_jmpbuf(PngDataPtr))){
-		//	printf("png write 'setjmp' failed\n");
-		//	exit((uint32_t)ExitCode::LIBPNGWRITEERROREXIT);
-		//}
-		png_init_io(PngDataPtr,SourceFilePtr);
-		png_set_IHDR(PngDataPtr,PngInfoPtr,
-		IMG.Size.Width,IMG.Size.Height,8,
-		PNG_COLOUR_TYPE_RGBA,
-		PNG_INTERLACE_NONE,
-		PNG_COMPRESSION_TYPE_DEFAULT,
-		PNG_FILTER_TYPE_DEFAULT);
-		png_write_info(PngDataPtr,PngInfoPtr);
-    
-		png_byte** RowDataPtrPtr = (png_byte**)malloc(sizeof(png_byte*)*IMG.Size.Height);
-		size_t t_rowbyte = png_get_rowbytes(PngDataPtr,PngInfoPtr);
-		// dump pixel data into image data 
-		for(uint32_t i = 0;i<IMG.Size.Height;i++){
-			RowDataPtrPtr[i] = (png_byte*)malloc(t_rowbyte);
-		}
-		for(uint32_t h = 0; h < IMG.Size.Height; h++) {
-		for(uint32_t w = 0; w < IMG.Size.Width; w++) {
-			HoldPosition = GetCoordinate(w, h, IMG.Size.Width);
-			RowDataPtrPtr[h][(w*4)+0] = IMG.Pixels[HoldPosition].R;
-			RowDataPtrPtr[h][(w*4)+1] = IMG.Pixels[HoldPosition].G;
-			RowDataPtrPtr[h][(w*4)+2] = IMG.Pixels[HoldPosition].B;
-			RowDataPtrPtr[h][(w*4)+3] = IMG.Pixels[HoldPosition].A;
-		}}
-		png_write_image(PngDataPtr, RowDataPtrPtr);
-		png_write_end(PngDataPtr, NULL);
-    
-		for(uint32_t i = 0;i<IMG.Size.Height;i++){
-			free(RowDataPtrPtr[i]);
-		}
-		free(RowDataPtrPtr);
-		fclose(SourceFilePtr);
-		png_destroy_write_struct(&PngDataPtr, &PngInfoPtr);
-	}
-}
-#endif
-
-// -------------------------------------HANDROLLED
 
 #ifdef USING_PNGHANDROLLED
 StomaImagePack::Image Read_png(std::string NAM,StomaImagePack::GroupType TYPE) {
@@ -1062,15 +867,18 @@ StomaImagePack::Image Read_png(std::string NAM,StomaImagePack::GroupType TYPE) {
 
 	// IHDR info
 	bool IHDRTaken = false;
-	uint8_t BitsPerColourChannel;
-	uint8_t ColourType;
-	uint8_t Compression;
-	uint8_t Filter;
-	uint8_t Interlace;
+	uint8_t BitsPerColourChannel = 0;
+	uint8_t ColourType = 0;
+	uint8_t Compression = 0;
+	uint8_t Filter = 0;
+	uint8_t Interlace = 0;
+	uint32_t SizeWidth = 0;
+	uint32_t SizeHeight = 0;
 	// PLTE info
 	std::vector<uint8_t> ColourData;
 	// IDAT info
 	std::vector<uint8_t> ImageData = {};
+
 
 
 	ReadFile.open(FileName,std::ios::binary);
@@ -1104,7 +912,7 @@ StomaImagePack::Image Read_png(std::string NAM,StomaImagePack::GroupType TYPE) {
 		uint64_t b = *Desired;
 		if(a!=b){
 			printf("file %s is not a valid png as signiture (%lu) != desired (%lu) \n",FileName.c_str(),a,b);
-			exit(ExitCode::CUSTOMPNGREADERROREXIT);
+			exit(ExitCode::PNGREADERROREXIT);
 		}
 	}
 	{
@@ -1137,7 +945,7 @@ StomaImagePack::Image Read_png(std::string NAM,StomaImagePack::GroupType TYPE) {
 			ChunkData.resize(ChunkLength);
 			if(ChunkLength>CharVector.size()){
 				printf("ChunkLen for %s in %s is %i out of CharVectors size of %i\n",ChunkType,FileName.c_str(),ChunkLength,(uint32_t)CharVector.size());
-				exit(ExitCode::CUSTOMPNGREADERROREXIT);
+				exit(ExitCode::PNGREADERROREXIT);
 			}
 			for(uint32_t i = 0;i<ChunkLength;i++){
 				ChunkData[i] = CharVector[CurrentPosition];CurrentPosition++;
@@ -1158,15 +966,20 @@ StomaImagePack::Image Read_png(std::string NAM,StomaImagePack::GroupType TYPE) {
 					IHDRTaken = true;
 					uint32_t datapos = 0;
 					// get width
-					CharVoodoo = (uint8_t*)&ReturnImage.Size.Width;
-					for(uint32_t i = 0;i<4;i++){
-						CharVoodoo[i] = ChunkData[datapos];datapos++;
-					}
+					// these are read backwards due to cancer
+					CharVoodoo = (uint8_t*)&SizeWidth;
+					CharVoodoo[3] = ChunkData[datapos+0];
+					CharVoodoo[2] = ChunkData[datapos+1];
+					CharVoodoo[1] = ChunkData[datapos+2];
+					CharVoodoo[0] = ChunkData[datapos+3];
+					datapos+=4;
 					// get height
-					CharVoodoo = (uint8_t*)&ReturnImage.Size.Height;
-					for(uint32_t i = 0;i<4;i++){
-						CharVoodoo[i] = ChunkData[datapos];datapos++;
-					}
+					CharVoodoo = (uint8_t*)&SizeHeight;
+					CharVoodoo[3] = ChunkData[datapos+0];
+					CharVoodoo[2] = ChunkData[datapos+1];
+					CharVoodoo[1] = ChunkData[datapos+2];
+					CharVoodoo[0] = ChunkData[datapos+3];
+					datapos+=4;
 					// get bit depth
 					CharVoodoo = (uint8_t*)&BitsPerColourChannel;
 					for(uint32_t i = 0;i<1;i++){
@@ -1229,6 +1042,15 @@ StomaImagePack::Image Read_png(std::string NAM,StomaImagePack::GroupType TYPE) {
 				// endof handling this chunk
 			}		
 		}
+		ReturnImage.Groups.resize(1);
+		ReturnImage.Size = {SizeWidth,SizeHeight};
+		ReturnImage.Groups[0].Name = NAM;
+		ReturnImage.Groups[0].Type = StomaImagePack::GroupType::REGULAR;
+		ReturnImage.Groups[0].Glyphs.resize(1);
+		ReturnImage.Groups[0].Glyphs[0].Name = NAM;
+		ReturnImage.Groups[0].Glyphs[0].Offset = {0,0};
+		ReturnImage.Groups[0].Glyphs[0].Size = {SizeWidth,SizeHeight};
+	
 		// handle data
 		/*
 		Color type			Channels	Bits per channel
@@ -1252,10 +1074,10 @@ StomaImagePack::Image Read_png(std::string NAM,StomaImagePack::GroupType TYPE) {
 				ColourStep = 4;
 				HandleRGB:;
 				uint32_t current = 0;
-				uint32_t target = ReturnImage.Size.Width*ReturnImage.Size.Height;
+				uint32_t PixelCount = ReturnImage.Size.Width*ReturnImage.Size.Height;
 				ReturnImage.Pixels = {};
 				if(BitsPerColourChannel == 16){
-					target*=2;
+					PixelCount*=2;
 					// doubles the target to allow for skipping minors
 					// so for BPCC of 16 is
 					//    major	   minor
@@ -1266,9 +1088,14 @@ StomaImagePack::Image Read_png(std::string NAM,StomaImagePack::GroupType TYPE) {
 					// as uint64_t is 8 bytes
 				}
 				// colours are floats
-				std::vector<StomaImagePack::Colour> colours{};
 				StomaImagePack::Colour TransposingColour;
-				while(current<target){
+				if(PixelCount>ColourData.size()){
+					printf("target w:%i h:%i (%i) greater than provided colour data count(%i)\n",
+					SizeWidth,SizeHeight,PixelCount,
+					(uint32_t)ColourData.size());
+					exit(ExitCode::PNGREADERROREXIT);
+				}
+				while(current<PixelCount){
 					TransposingColour.R = ColourData[(current*ColourStep)+0];
 					TransposingColour.G = ColourData[(current*ColourStep)+1];
 					TransposingColour.B = ColourData[(current*ColourStep)+2];
@@ -1291,7 +1118,7 @@ StomaImagePack::Image Read_png(std::string NAM,StomaImagePack::GroupType TYPE) {
 
 			default:{
 				printf("png has an invalid colour type of %i \n",ColourType);
-				exit(ExitCode::CUSTOMPNGREADERROREXIT);
+				exit(ExitCode::PNGREADERROREXIT);
 			};
 
 		}
