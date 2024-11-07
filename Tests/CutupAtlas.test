@@ -1,0 +1,6 @@
+--output
+./ExamplesOutput/Cutup
+--cutup
+--name
+TestCutup
+./ExamplesOutput/TestAtlas.stimpac

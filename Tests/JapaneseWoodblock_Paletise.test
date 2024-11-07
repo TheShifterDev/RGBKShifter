@@ -1,0 +1,8 @@
+--output
+./ExamplesOutput
+--palet
+./ExamplesData/Pallets/japanese-woodblock.png
+--name
+Japanese-Woodblock_Paletised_ExampleCandD
+./ExamplesData/Textures/ExampleC.png
+./ExamplesData/Textures/ExampleD.png

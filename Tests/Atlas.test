@@ -1,0 +1,9 @@
+--output
+./ExamplesOutput
+--atlas
+--name
+TestAtlas
+./ExamplesData/Textures/ExampleA.png
+./ExamplesData/Textures/ExampleB.png
+./ExamplesData/Textures/ExampleC.png
+./ExamplesData/Textures/ExampleD.png

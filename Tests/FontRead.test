@@ -1,0 +1,8 @@
+--out
+./ExamplesOutput/FontCutup
+--cutup
+--name
+FontCutupOutput
+--format
+png
+./ExamplesData/Fonts/iosevka-regular.ttf

@@ -1,0 +1,6 @@
+--output
+./ExamplesOutput
+--shift
+--name
+Shifted_ExampleA
+./ExamplesData/Textures/ExampleA.png

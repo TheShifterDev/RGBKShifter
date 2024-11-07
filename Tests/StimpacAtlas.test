@@ -1,0 +1,11 @@
+--output
+./ExamplesOutput
+--atlas
+--format
+stimpac
+--name
+TestAtlas
+./ExamplesData/Textures/ExampleA.png
+./ExamplesData/Textures/ExampleB.png
+./ExamplesData/Textures/ExampleC.png
+./ExamplesData/Textures/ExampleD.png

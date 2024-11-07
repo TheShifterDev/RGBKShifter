@@ -17,7 +17,12 @@
 * "Polyducks" for the "japanese woodblock" pallet used in testing https://lospec.com/palette-list/japanese-woodblock
 * "be5invis" and other contributors for the font used in testing https://github.com/be5invis/Iosevka/releases
 # Notes
+to test the program outside of vscode/vscodium cat a test fileinto the built binary, for example
+'./Built/rgbkshifter.bin $(cat ./Tests/Shift.Test)'
+and debuging should be done via
+'gdb --args ./Built/rgbkshifter.bin $(cat ./Tests/Shift.Test)'
 ## TODO
+* add sanitychecks to all functions
 * get handrolled png writing done
 * test handrolled png code tested
 * add way to request grouptype for read file

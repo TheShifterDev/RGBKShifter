@@ -1,0 +1,8 @@
+--output 
+./ExamplesOutput
+--palet
+./ExamplesData/Pallets/amber-glow.png
+--name
+Amber-Glow_Paletised_ExampleAandB
+./ExamplesData/Textures/ExampleA.png
+./ExamplesData/Textures/ExampleB.png
