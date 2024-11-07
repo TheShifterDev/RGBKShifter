@@ -74,6 +74,8 @@ ReorderByVolume(std::vector<StomaImagePack::Image> IMG);
 float GetRGBColourDistance(StomaImagePack::Colour A, StomaImagePack::Colour B);
 void PalletiseImage(StomaImagePack::Image &IMG,
 					std::vector<StomaImagePack::Colour> PAL);
+					
+StomaImagePack::Image TrimImage(StomaImagePack::Image INPUT);
 StomaImagePack::Image MergeImages(std::vector<StomaImagePack::Image> IMG);
 std::vector<StomaImagePack::Colour>
 ExtractPallet_Image(StomaImagePack::Image IMG);
@@ -152,7 +154,6 @@ int main(int argc, char *argv[]) {
 					PalletImage = Read_png(PalletName,StomaImagePack::GroupType::REGULAR);
 					PalletColours = ExtractPallet_Image(PalletImage);
 				}
-				// TODO: change pallet
 				ChangeReadFileColour = ColourCommands::PALET;
 				t_i += 2;
 			} else if(hold == "-s" || hold == "--shift") {
@@ -215,7 +216,10 @@ int main(int argc, char *argv[]) {
 	// write file
 	if (OutputAtlas){
 		// output single atlas file
-		StomaImagePack::Image AtlasImage = MergeImages(ImageList);
+		StomaImagePack::Image AtlasImage;
+		AtlasImage = MergeImages(ImageList);
+		AtlasImage = TrimImage(AtlasImage);
+
 		WriteOut(AtlasImage, OutputDirectory + OutputName);
 	}else{
 		// output as multiple glyph files
@@ -329,77 +333,90 @@ std::vector<StomaImagePack::Image> SeperateGlyphs(std::vector<StomaImagePack::Im
 // clang-format on
 
 StomaImagePack::Image TrimImage(StomaImagePack::Image INPUT){
+	// NOTE: this was inside of mergeimages but it was additional bug surface area
+	// might change back at some point but for now its isolated into its own segment
 	StomaImagePack::Image OutputImage;
-	// ---------------------------TRIM--------------------------------//
-	// construct a atlas of occupied points
+	// construct an atlas of occupied points
 	std::vector<bool> OccupiedPixels{};
-	StomaImagePack::Glyph* CurrentGlyph;
+	StomaImagePack::Glyph& CurrentGlyph = INPUT.Groups[0].Glyphs[0];
 	uint32_t NewPoint,OldPoint;
-	uint32_t XPos;
-	uint32_t YPos;
-	uint32_t CropWSize; 
-	uint32_t CropHSize;
 	
 	OccupiedPixels.resize(INPUT.Pixels.size());
-	for (uint32_t gr=0; gr<INPUT.Groups.size();gr++) {
-	for (uint32_t gl=0; gl<INPUT.Groups[gr].Glyphs.size();gl++) {
-		CurrentGlyph = &INPUT.Groups[gr].Glyphs[gl];
-		if((CurrentGlyph->Size.Width+CurrentGlyph->Offset.Width)>INPUT.Size.Width
-		|| (CurrentGlyph->Size.Width+CurrentGlyph->Offset.Width)>INPUT.Size.Width){
-			printf("Trim Image oob check for Group[%i].glyph[%i] is oob as xoff[%i] + xsiz[%i] > imgxsize[%i] or yoff[%i] + ysiz[%i] > imgysize[%i]\n",
-					gr,gl,
-					CurrentGlyph->Offset.Width,
-					CurrentGlyph->Size.Width,
-					INPUT.Size.Width,
-					CurrentGlyph->Offset.Height,
-					CurrentGlyph->Size.Height,
-					INPUT.Size.Height);
+	{
+		// ISSUE: this seems to not be painting the height
+		for (uint32_t gr=0; gr<INPUT.Groups.size();gr++) {
+		for (uint32_t gl=0; gl<INPUT.Groups[gr].Glyphs.size();gl++) {
+			CurrentGlyph = INPUT.Groups[gr].Glyphs[gl];
+			if((CurrentGlyph.Size.Width+CurrentGlyph.Offset.Width)>INPUT.Size.Width
+			|| (CurrentGlyph.Size.Height+CurrentGlyph.Offset.Height)>INPUT.Size.Height){
+				printf("Trim Image oob check for Group[%i].glyph[%i] is oob as xoff[%i] + xsiz[%i] > imgxsize[%i] or yoff[%i] + ysiz[%i] > imgysize[%i]\n",
+						gr,gl,
+						CurrentGlyph.Offset.Width,
+						CurrentGlyph.Size.Width,
+						INPUT.Size.Width,
+						CurrentGlyph.Offset.Height,
+						CurrentGlyph.Size.Height,
+						INPUT.Size.Height);
+				exit(ExitCode::FILECORRUPTION);
+			}
+			if((CurrentGlyph.Size.Width*CurrentGlyph.Size.Height)!=0){
+				for (uint32_t Y=0;Y<CurrentGlyph.Size.Height;Y++) {
+				for (uint32_t X=0;X<CurrentGlyph.Size.Width;X++) {
+					uint32_t XPos = CurrentGlyph.Offset.Width + X;
+					uint32_t YPos = CurrentGlyph.Offset.Height + Y;
+					OldPoint = GetCoordinate(XPos, YPos, INPUT.Size.Width);
+					OccupiedPixels[OldPoint] = true;
+				}}
+			}
+		}}
+	}
+	uint32_t CropWSize;
+	uint32_t CropHSize;
+	{
+		// get true used Heigth/Rows
+		for(CropHSize=INPUT.Size.Height;CropHSize>0;CropHSize--){
+		for(uint32_t w=0;w<INPUT.Size.Width;w++){
+			if (OccupiedPixels[GetCoordinate(w,(CropHSize-1),INPUT.Size.Width)]){
+				goto HHit;
+			}
+		}}
+		HHit:;
+		if(CropHSize == 0){
+			printf("TrimImage has trimmed the height to 0\n");
 			exit(ExitCode::FILECORRUPTION);
 		}
-		if((CurrentGlyph->Size.Width*CurrentGlyph->Size.Height)!=0){
-				// TODO: fill out Occupied pixels
-			for (uint32_t Y=0;Y<CurrentGlyph->Size.Height;Y++) {
-			for (uint32_t X=0;X<CurrentGlyph->Size.Width;X++) {
-				XPos = CurrentGlyph->Offset.Width + X;
-				YPos = CurrentGlyph->Offset.Height + Y;
-				OldPoint = GetCoordinate(XPos, YPos, INPUT.Pixels.size());
-				OccupiedPixels[OldPoint] = true;
-			}}
-		}
-	}}
-	CropWSize = INPUT.Size.Width;
-	CropHSize = INPUT.Size.Height;
-	// get true used Heigth/Rows
-	while (CropHSize > 1) {
-		for(uint32_t w=0;w<CropWSize;w++){
-			if (OccupiedPixels[GetCoordinate(w,CropHSize-1, INPUT.Size.Width)]){
-				goto PixelRowOccupiedBreakout;
-			}
-		}
-		CropHSize--;
-	}
-	PixelRowOccupiedBreakout:;
-	// get true used Width/Columns
-	while (CropWSize > 1) {
+		// get true used Width/Columns
+		for(CropWSize=INPUT.Size.Width;CropWSize>0;CropWSize--){
 		for(uint32_t h=0;h<CropHSize;h++){
-			if (OccupiedPixels[GetCoordinate(CropWSize-1 , h, INPUT.Size.Width)]){
-				goto PixelColumnOccupiedBreakout;
+			if (OccupiedPixels[GetCoordinate((CropWSize-1),h,INPUT.Size.Width)]){
+				goto WHit;
 			}
+		}}
+		WHit:;
+		if(CropWSize == 0){
+			printf("TrimImage has trimmed the width to 0\n");
+			exit(ExitCode::FILECORRUPTION);
 		}
-		CropHSize--;
 	}
-	PixelColumnOccupiedBreakout:;
 	// check if there are rows or columns to trim
-	OutputImage.Pixels.resize(CropWSize*CropHSize);
-	if(CropWSize == 0|| CropHSize == 0){
+	uint32_t CropedSize = (CropWSize*CropHSize);
+	if(CropedSize == 0){
 		printf("croped sizes are invalid w:%i and h:%i\n",CropWSize,CropHSize);
+		exit(ExitCode::FILECORRUPTION);
 	}
-
-	if(CropWSize != INPUT.Size.Width 
-	|| CropHSize != INPUT.Size.Height){
+	if(CropedSize == (INPUT.Size.Width*INPUT.Size.Height)){
+		// crop unessesary
+		printf("croping was not needed\n");
+		return INPUT;
+	}else{
+		// crop nessesary
+		printf("croping was needed as croped w:%i h:%i != input w:%i h:%i\n",
+			CropWSize,CropHSize,
+			INPUT.Size.Width,INPUT.Size.Height);
+		OutputImage.Pixels.resize(CropedSize);
 		// transpose canvas pixels onto trimmed output image
-		for(YPos = 0; YPos < CropHSize; YPos++) {
-		for(XPos = 0; XPos < CropWSize; XPos++) {
+		for(uint32_t YPos = 0; YPos < CropHSize; YPos++) {
+		for(uint32_t XPos = 0; XPos < CropWSize; XPos++) {
 			NewPoint = GetCoordinate(XPos,YPos,CropWSize);
 			OldPoint = GetCoordinate(XPos,YPos,INPUT.Size.Width);
 			OutputImage.Pixels[NewPoint] = INPUT.Pixels[OldPoint];
@@ -413,34 +430,32 @@ StomaImagePack::Image TrimImage(StomaImagePack::Image INPUT){
 StomaImagePack::Image
 MergeImages(std::vector<StomaImagePack::Image> SUBIMAGES) {
 	if(SUBIMAGES.size() == 0){
-		printf("MergeImages recived 0 images \n");
+		printf("MergeImages recived 0 images\n");
 		exit(ExitCode::FILECORRUPTION);
 	}
+	#ifdef USING_SANITYCHECKS
 	{
 		bool ShouldExit = false;
+		uint32_t ExpectedPixelCount;
 		for(uint32_t i=0;i<SUBIMAGES.size();i++){
-			if((SUBIMAGES[i].Size.Width*SUBIMAGES[i].Size.Height) == 0){
+			ExpectedPixelCount =(SUBIMAGES[i].Size.Width*SUBIMAGES[i].Size.Height);
+			if(ExpectedPixelCount != (uint32_t)SUBIMAGES[i].Pixels.size()){
+				printf("MergeImages has received a StomaImagePack::Image [%i] with size corruption w:%i h:%i (total:%i) > pc:%i\n",
+					i,
+					SUBIMAGES[i].Size.Width,SUBIMAGES[i].Size.Height,
+					ExpectedPixelCount,
+					(uint32_t)SUBIMAGES[i].Pixels.size());
 				ShouldExit = true;
-				printf("image[%i] out of %i has an invalid w/h of w:%i h:%i\n",
-				i,
-				(uint32_t)SUBIMAGES.size(),
-				SUBIMAGES[i].Size.Width,
-				SUBIMAGES[i].Size.Height);
 			}
-			if(SUBIMAGES[i].Pixels.size() == 0){
-				ShouldExit = true;
-				printf("image[%i] out of %i has 0 pixels\n",i,(uint32_t)SUBIMAGES.size());
-			}
+		
 		}
 		if(ShouldExit){
 			exit(ExitCode::FILECORRUPTION);
 		}
 	}
+	#endif
 	StomaImagePack::Image OutputImage;
 	OutputImage.Groups.resize(1); 
-	uint32_t MaxWRequired = 0;
-	uint32_t MaxHRequired = 0;
-	std::vector<StomaImagePack::Colour> Canvas;
 	std::vector<bool> Occupied;
 
 	// TODO: Create a better merge algarythm
@@ -452,14 +467,12 @@ MergeImages(std::vector<StomaImagePack::Image> SUBIMAGES) {
 	for(uint32_t im = 0; im<SUBIMAGES.size();im++){
 	for(uint32_t gr = 0; gr<SUBIMAGES[im].Groups.size();gr++){
 	for(uint32_t gl = 0; gl<SUBIMAGES[im].Groups[gr].Glyphs.size();gl++){
-		MaxWRequired += SUBIMAGES[im].Groups[gr].Glyphs[gl].Size.Width;
-		MaxHRequired += SUBIMAGES[im].Groups[gr].Glyphs[gl].Size.Height;
+		OutputImage.Size.Width  += SUBIMAGES[im].Groups[gr].Glyphs[gl].Size.Width;
+		OutputImage.Size.Height += SUBIMAGES[im].Groups[gr].Glyphs[gl].Size.Height;
 	}}}
 	// create a canvas
-	
-
-	uint32_t CanvasSize = MaxWRequired*MaxHRequired;
-	Canvas.resize(CanvasSize);
+	uint32_t CanvasSize = OutputImage.Size.Width*OutputImage.Size.Height;
+	OutputImage.Pixels.resize(CanvasSize);
 	Occupied.resize(CanvasSize);
 	uint32_t CurrentGroup;
 	
@@ -467,60 +480,58 @@ MergeImages(std::vector<StomaImagePack::Image> SUBIMAGES) {
 	// iterate over canvas every glyph and iterate over every position to find a good placement
 	for (uint32_t im = 0;im < SUBIMAGES.size();im++) {
 	for (uint32_t gr = 0;gr < SUBIMAGES[im].Groups.size();gr++) {
-		// get group type
-		switch (SUBIMAGES[im].Groups[gr].Type) {
-			case(StomaImagePack::GroupType::REGULAR):{
-				// put into new images group 0
-				CurrentGroup = 0;
-				break;
-			}
-			case(StomaImagePack::GroupType::NORMALMAP):{
-				// put normals into group 1
-				CurrentGroup = 1;
-				break;
-			}
-			case(StomaImagePack::GroupType::FONT):{
-				// create a new group
-				CurrentGroup = OutputImage.Groups.size();
-				OutputImage.Groups.resize(CurrentGroup+1);
-				break;
-			}
-			default:{
-				printf("Invalid GroupType on image %i\n",im);
-				exit((uint32_t)ExitCode::STOMAIMAGEERROREXIT);
+		{
+			// get group type
+			switch (SUBIMAGES[im].Groups[gr].Type) {
+				case(StomaImagePack::GroupType::REGULAR):{
+					// put into new images group 0
+					CurrentGroup = 0;
+					break;
+				}
+				case(StomaImagePack::GroupType::NORMALMAP):{
+					// put normals into group 1
+					CurrentGroup = 1;
+					break;
+				}
+				case(StomaImagePack::GroupType::FONT):{
+					// create a new group
+					CurrentGroup = OutputImage.Groups.size();
+					OutputImage.Groups.resize(CurrentGroup+1);
+					break;
+				}
+				default:{
+					printf("Invalid GroupType on image %i\n",im);
+					exit((uint32_t)ExitCode::STOMAIMAGEERROREXIT);
+				}
 			}
 		}
 	for (uint32_t gl = 0;gl < SUBIMAGES[im].Groups[gr].Glyphs.size();gl++) {
 		// check if glyph is bogus
 		if((SUBIMAGES[im].Groups[gr].Glyphs[gl].Size.Width*SUBIMAGES[im].Groups[gr].Glyphs[gl].Size.Width) != 0){
 			// check if its safe to draw in position
-			for(uint32_t MYPos = 0; MYPos < MaxHRequired; MYPos++) {
-			for(uint32_t MXPos = 0; MXPos < MaxWRequired; MXPos++) {
+			for(uint32_t MYPos = 0; MYPos < OutputImage.Size.Height; MYPos++) {
+			for(uint32_t MXPos = 0; MXPos < OutputImage.Size.Width; MXPos++) {
 				// test if first pixel is empty
-				if (Occupied[GetCoordinate(MXPos,MYPos,MaxWRequired)] == false) {
+				if (Occupied[GetCoordinate(MXPos,MYPos,OutputImage.Size.Width)] == false) {
 					DrawSafe = true;
 					// check if position collides with previously written positions
 					for(uint32_t SYPos=0;SYPos<SUBIMAGES[im].Groups[gr].Glyphs[gl].Size.Height;SYPos++){
 					for(uint32_t SXPos=0;SXPos<SUBIMAGES[im].Groups[gr].Glyphs[gl].Size.Width ;SXPos++){
-						if(Occupied[GetCoordinate(MXPos + SXPos,MYPos + SYPos,MaxWRequired)] == true){
+						if(Occupied[GetCoordinate(MXPos + SXPos,MYPos + SYPos,OutputImage.Size.Width)] == true){
 							DrawSafe = false;
-							goto AlreadyWrittenBreakout;
+							goto AlreadyWrittenIn;
 						}
 					}}
-					AlreadyWrittenBreakout:;
 					if (DrawSafe){
-						uint32_t MPoint,SPoint;
 						// draw
 						for(uint32_t SYPos=0;SYPos<SUBIMAGES[im].Groups[gr].Glyphs[gl].Size.Height;SYPos++){
 						for(uint32_t SXPos=0;SXPos<SUBIMAGES[im].Groups[gr].Glyphs[gl].Size.Width ;SXPos++){
-							MPoint = GetCoordinate(MXPos + SXPos,MYPos + SYPos,MaxWRequired);
-							SPoint = GetCoordinate(SXPos, SYPos, SUBIMAGES[im].Groups[gr].Glyphs[gl].Size.Width);
-							Canvas[MPoint] = SUBIMAGES[im].Pixels[SPoint];
+							uint32_t MPoint = GetCoordinate(MXPos + SXPos,MYPos + SYPos,OutputImage.Size.Width);
+							uint32_t SPoint = GetCoordinate(SXPos, SYPos, SUBIMAGES[im].Groups[gr].Glyphs[gl].Size.Width);
+							OutputImage.Pixels[MPoint] = SUBIMAGES[im].Pixels[SPoint];
 							Occupied[MPoint] = true;
 						}}
-						
 						// place glyph
-						
 						StomaImagePack::Glyph TransposingGlyph = {};
 						TransposingGlyph.Name = SUBIMAGES[im].Groups[gr].Glyphs[gl].Name;
 						TransposingGlyph.Offset.Width	= MXPos;
@@ -531,20 +542,31 @@ MergeImages(std::vector<StomaImagePack::Image> SUBIMAGES) {
 						goto NextGlyph;
 					}
 				}
+				AlreadyWrittenIn:;
 			}}
 		}
 	// endof glyph
 	NextGlyph:;
 	}
+	// endof glyphs
 	}
 	// endof group
 	}
 	// endof image
 	#endif
 	// clang-format off
+	
+	#ifdef USING_SANITYCHECKS
+	CanvasSize = (OutputImage.Size.Width*OutputImage.Size.Height);
+	if(CanvasSize != (uint32_t)OutputImage.Pixels.size()){
+		printf("MergeImages has created a StomaImagePack::Image with size corruption w:%i h:%i (total:%i) > pc:%i\n",
+		OutputImage.Size.Width,OutputImage.Size.Height,
+		CanvasSize,
+		(uint32_t)OutputImage.Pixels.size());
+		exit(ExitCode::FILECORRUPTION);
+	}
+	#endif
 
-	
-	
 	return OutputImage;
 	// clang-format on
 }
@@ -626,11 +648,9 @@ ReorderByVolume(std::vector<StomaImagePack::Image> UNORDERED) {
 	}
 	return OrderedImages;
 }
-
 inline uint32_t GetCoordinate(uint32_t XPOS, uint32_t YPOS, uint32_t MAXX) {
 	return (XPOS + (YPOS * MAXX));
 }
-
 void WriteOut(StomaImagePack::Image IMG, std::string NAM) {
 	if(OutFileType == FileType::PNG) {
 		Write_png(IMG, NAM);
@@ -777,11 +797,21 @@ StomaImagePack::Image Read_ttf(std::string NAM) {
 			}}
 		}
 	}
+
+	#ifdef USING_SANITYCHECKS
+	uint32_t ExpectedPixelCount =(ReturnImage.Size.Width*ReturnImage.Size.Height);
+	if(ExpectedPixelCount != (uint32_t)ReturnImage.Pixels.size()){
+		printf("read_ttf has created a StomaImagePack::Image with size corruption w:%i h:%i (total:%i) > pc:%i\n",
+		ReturnImage.Size.Width,ReturnImage.Size.Height,
+		ExpectedPixelCount,
+		(uint32_t)ReturnImage.Pixels.size());
+		exit(ExitCode::FILECORRUPTION);
+	}
+	#endif
 	
 	return ReturnImage;
 }
 // -------------------------------------PNG++
-
 #ifdef USING_PNGPP
 StomaImagePack::Image Read_png(std::string NAM,StomaImagePack::GroupType TYPE) {
 	// assumes .png has been trimmed off
@@ -818,14 +848,30 @@ StomaImagePack::Image Read_png(std::string NAM,StomaImagePack::GroupType TYPE) {
 			ReturnImage.Pixels[HoldPosition].A = HoldPixel.alpha;
 		}}
 	}
+	// TODO: add sanitychecks to all functions
+	#ifdef USING_SANITYCHECKS
+	uint32_t ExpectedPixelCount =(ReturnImage.Size.Width*ReturnImage.Size.Height);
+	if(ExpectedPixelCount != (uint32_t)ReturnImage.Pixels.size()){
+		printf("read_png has created a StomaImagePack::Image with size corruption w:%i h:%i (total:%i) > pc:%i\n",
+		ReturnImage.Size.Width,ReturnImage.Size.Height,
+		ExpectedPixelCount,
+		(uint32_t)ReturnImage.Pixels.size());
+		exit(ExitCode::FILECORRUPTION);
+	}
+	#endif
 	return ReturnImage;// returns read image 
 }
 void Write_png(StomaImagePack::Image IMG, std::string NAM) {
-	if((IMG.Size.Width*IMG.Size.Height) != (uint32_t)IMG.Pixels.size()){
-		printf("write_png has recived a StomaImagePack::Image with size corruption w:%i,h:%i > pc:%i",
-		IMG.Size.Width,IMG.Size.Height,(uint32_t)IMG.Pixels.size());
+	#ifdef USING_SANITYCHECKS
+	uint32_t ExpectedPixelCount =(IMG.Size.Width*IMG.Size.Height);
+	if(ExpectedPixelCount != (uint32_t)IMG.Pixels.size()){
+		printf("write_png has recived a StomaImagePack::Image with size corruption w:%i h:%i (total:%i) > pc:%i\n",
+		IMG.Size.Width,IMG.Size.Height,
+		ExpectedPixelCount,
+		(uint32_t)IMG.Pixels.size());
 		exit(ExitCode::FILECORRUPTION);
 	}
+	#endif
 	{
 		png::image<png::rgba_pixel> WriteFile;
 		if(WriteFile.get_width() != IMG.Size.Width
@@ -847,8 +893,6 @@ void Write_png(StomaImagePack::Image IMG, std::string NAM) {
 	}
 }
 #endif
-
-
 #ifdef USING_PNGHANDROLLED
 StomaImagePack::Image Read_png(std::string NAM,StomaImagePack::GroupType TYPE) {
 	// assumes .png has been trimmed off
@@ -1129,10 +1173,9 @@ StomaImagePack::Image Read_png(std::string NAM,StomaImagePack::GroupType TYPE) {
 	// NOTE: reading seems to work now i just need to write files
 	return ReturnImage;// returns read image 
 }
-
-
 //
 void Write_png(StomaImagePack::Image IMG, std::string NAM) {
+	// TODO: do this properly and generate a real crc instead of creating bogus ones
 	if((IMG.Size.Width*IMG.Size.Height) != (uint32_t)IMG.Pixels.size()){
 		printf("write_png has recived a StomaImagePack::Image with size corruption w:%i,h:%i > pc:%i\n",
 		IMG.Size.Width,IMG.Size.Height,(uint32_t)IMG.Pixels.size());
@@ -1167,8 +1210,6 @@ void Write_png(StomaImagePack::Image IMG, std::string NAM) {
 		CharBuffer.push_back(0); // always no filter
 		CharBuffer.push_back(0); // always no interlace
 		// CRC
-		// TODO: do this properly
-		// HACK: bogus crc
 		for(uint32_t i=0;i<4;i++){CharBuffer.push_back(0);}
 	}
 	// write data chunk
@@ -1193,8 +1234,6 @@ void Write_png(StomaImagePack::Image IMG, std::string NAM) {
 			CharBuffer.push_back(IMG.Pixels[i].A);
 		}
 		// CRC
-		// TODO: do this properly
-		// HACK: bogus crc
 		for(uint32_t i=0;i<4;i++){CharBuffer.push_back(0);}
 	}
 	// write end chunk
@@ -1212,8 +1251,6 @@ void Write_png(StomaImagePack::Image IMG, std::string NAM) {
 		// data
 		// NOTE: end always has 0 data
 		// CRC
-		// TODO: do this properly
-		// HACK: bogus crc
 		for(uint32_t i=0;i<4;i++){CharBuffer.push_back(0);}
 	}
 	// open file
