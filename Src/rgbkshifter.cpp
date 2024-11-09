@@ -67,10 +67,8 @@ void WriteOut(StomaImagePack::Image IMG, std::string NAM);
 // CAUSED A BUG THAT TOOK DAYS TO TRACK
 inline uint32_t GetCoordinate(uint32_t XPOS, uint32_t YPOS, uint32_t MAXX);
 
-std::vector<StomaImagePack::Image>
-SeperateGlyphs(std::vector<StomaImagePack::Image> IMG);
-std::vector<StomaImagePack::Image>
-ReorderByVolume(std::vector<StomaImagePack::Image> IMG);
+std::vector<StomaImagePack::Image> SeperateGlyphs(StomaImagePack::Image IMG);
+std::vector<StomaImagePack::Image> ReorderByVolume(std::vector<StomaImagePack::Image> IMG);
 float GetRGBColourDistance(StomaImagePack::Colour A, StomaImagePack::Colour B);
 void PalletiseImage(StomaImagePack::Image &IMG,
 					std::vector<StomaImagePack::Colour> PAL);
@@ -219,14 +217,15 @@ int main(int argc, char *argv[]) {
 		StomaImagePack::Image AtlasImage;
 		AtlasImage = MergeImages(ImageList);
 		AtlasImage = TrimImage(AtlasImage);
-
 		WriteOut(AtlasImage, OutputDirectory + OutputName);
 	}else{
 		// output as multiple glyph files
-		std::vector<StomaImagePack::Image> GlyphImageList = SeperateGlyphs(ImageList);
-		for(uint32_t i = 0; i < GlyphImageList.size(); i++) {
-			WriteOut(GlyphImageList[i],
-				OutputDirectory + OutputName +"_"+ GlyphImageList[i].Groups[0].Name +"_"+ GlyphImageList[i].Groups[0].Glyphs[0].Name);
+		for(uint32_t q=0;q<ImageList.size();q++){
+			std::vector<StomaImagePack::Image> GlyphImageList = SeperateGlyphs(ImageList[q]);
+			for(uint32_t i = 0; i < GlyphImageList.size(); i++) {
+				WriteOut(GlyphImageList[i],
+					OutputDirectory + OutputName +"_"+ GlyphImageList[i].Groups[0].Name +"_"+ GlyphImageList[i].Groups[0].Glyphs[0].Name);
+			}
 		}
 	}
 
@@ -265,8 +264,87 @@ std::string LowerCaseify(std::string INP) {
 	return INP;
 }
 
+bool SanityCheckImageData(StomaImagePack::Image IMG,std::string FUNCNAME){
+	// NOTE: Returns false if data is valid and no errors were found
+	
+	// TEST: Image has a valid width and height
+	if((IMG.Size.Width*IMG.Size.Height) == 0){
+		printf("%s has an image with an invalid width(%i) and height(%i)\n",FUNCNAME.c_str(),
+		IMG.Size.Width,IMG.Size.Height);
+		return true;
+	} 
+	// TEST: Image has more than 0 pixels
+	if(IMG.Pixels.size() == 0){
+		printf("%s has an image with 0 pixels\n",FUNCNAME.c_str());
+		return true;
+	}
+	// TEST: if Image has more than 0 groups as 1 is the minimum
+	if(IMG.Groups.size() == 0){
+		printf("%s has an image with 0 groups\n",FUNCNAME.c_str());
+		return true;
+	}
+	// TEST: if groups have more than 0 glyphs as 1 is the minimum
+	for(uint32_t gr=0;gr<IMG.Groups.size();gr++){
+		if(IMG.Groups[gr].Glyphs.size() == 0){
+			printf("%s has an image with a group[%i] containing 0 glyphs\n",FUNCNAME.c_str(),gr);
+			return true;
+		}
+	}
+	// TEST: if any glyphs have an offset larger than size of image
+	for(uint32_t gr=0;gr<IMG.Groups.size();gr++){
+	for(uint32_t gl=0;gl<IMG.Groups[gr].Glyphs.size();gl++){
+		if(	(IMG.Groups[gr].Glyphs[gl].Offset.Width > IMG.Size.Width)
+		||	(IMG.Groups[gr].Glyphs[gl].Offset.Height > IMG.Size.Height)){
+			printf("%s has an image.group[%i].glyph[%i].offset(w:%i,h:%i) out of image size(w:%i,h:%i) bounds\n",FUNCNAME.c_str(),
+			gr,gl,
+			IMG.Groups[gr].Glyphs[gl].Offset.Width,
+			IMG.Groups[gr].Glyphs[gl].Offset.Height,
+			IMG.Size.Width,
+			IMG.Size.Height);
+			return true;
+		}
+	}}
+	// TEST: if any glyphs have a size larger than size of image
+	for(uint32_t gr=0;gr<IMG.Groups.size();gr++){
+	for(uint32_t gl=0;gl<IMG.Groups[gr].Glyphs.size();gl++){
+		if(	(IMG.Groups[gr].Glyphs[gl].Size.Width > IMG.Size.Width)
+		||	(IMG.Groups[gr].Glyphs[gl].Size.Height > IMG.Size.Height)){
+			printf("%s has an image.group[%i].glyph[%i].size(w:%i,h:%i) out of image size(w:%i,h:%i) bounds\n",FUNCNAME.c_str(),
+			gr,gl,
+			IMG.Groups[gr].Glyphs[gl].Size.Width,
+			IMG.Groups[gr].Glyphs[gl].Size.Height,
+			IMG.Size.Width,
+			IMG.Size.Height);
+			return true;
+		}
+	}}
+
+	// TEST: if any glyphs have a (offset+size) larger than size of image
+	{
+	uint32_t wmax;
+	uint32_t hmax;
+	for(uint32_t gr=0;gr<IMG.Groups.size();gr++){
+	for(uint32_t gl=0;gl<IMG.Groups[gr].Glyphs.size();gl++){
+		wmax = IMG.Groups[gr].Glyphs[gl].Offset.Width+IMG.Groups[gr].Glyphs[gl].Size.Width;
+		hmax = IMG.Groups[gr].Glyphs[gl].Offset.Height+IMG.Groups[gr].Glyphs[gl].Size.Height;
+		if(	(wmax > IMG.Size.Width)
+		||	(hmax > IMG.Size.Height)){
+			printf("%s has an image.group[%i].glyph[%i].(offset+size)(w:%i,h:%i) out of image size(w:%i,h:%i) bounds\n",FUNCNAME.c_str(),
+			gr,gl,
+			wmax,hmax,
+			IMG.Size.Width,
+			IMG.Size.Height);
+			return true;
+		}
+	}}
+	}
+
+	// no errors found
+	return false;
+}
+
 // clang-format off
-std::vector<StomaImagePack::Image> SeperateGlyphs(std::vector<StomaImagePack::Image> FEDIMAGES) {
+std::vector<StomaImagePack::Image> SeperateGlyphs(StomaImagePack::Image IMG) {
 	// takes an array of stoma images and cuts every glyph out into its own image
 	std::vector<StomaImagePack::Image> OutputImages;
 	StomaImagePack::Image HoldingImage;
@@ -279,14 +357,23 @@ std::vector<StomaImagePack::Image> SeperateGlyphs(std::vector<StomaImagePack::Im
 	uint32_t NewPixelCount;
 	uint32_t OldPixelCount;
 
-	for(uint32_t img = 0; img < FEDIMAGES.size(); img++) {
-		OldPixelCount = FEDIMAGES[img].Pixels.size();
-	for(uint32_t grp = 0; grp < FEDIMAGES[img].Groups.size(); grp++) {
-	for(uint32_t gly = 0; gly < FEDIMAGES[img].Groups[grp].Glyphs.size(); gly++) {
-		NewSize = FEDIMAGES[img].Groups[grp].Glyphs[gly].Size;
-		OldOffset = FEDIMAGES[img].Groups[grp].Glyphs[gly].Offset;
-		OldGroupName = FEDIMAGES[img].Groups[grp].Name;
-		OldGlyphName = FEDIMAGES[img].Groups[grp].Glyphs[gly].Name;
+	
+	#ifdef USING_SANITYCHECKS
+	{
+		StomaImagePack::Image& TestTarget = IMG;
+		if(SanityCheckImageData(TestTarget,"SeperateGlyphs Input")){
+			exit(ExitCode::FILECORRUPTION);
+		};
+	}
+	#endif
+
+	OldPixelCount = IMG.Pixels.size();
+	for(uint32_t grp = 0; grp < IMG.Groups.size(); grp++) {
+	for(uint32_t gly = 0; gly < IMG.Groups[grp].Glyphs.size(); gly++) {
+		NewSize = IMG.Groups[grp].Glyphs[gly].Size;
+		OldOffset = IMG.Groups[grp].Glyphs[gly].Offset;
+		OldGroupName = IMG.Groups[grp].Name;
+		OldGlyphName = IMG.Groups[grp].Glyphs[gly].Name;
 		NewPixelCount = (NewSize.Width * NewSize.Height);
 		if (NewPixelCount != 0){
 			HoldingImage.Size = NewSize;
@@ -299,12 +386,12 @@ std::vector<StomaImagePack::Image> SeperateGlyphs(std::vector<StomaImagePack::Im
 			HoldingImage.Groups[0].Glyphs[0].Size = NewSize;
 			HoldingImage.Pixels.resize(NewPixelCount);
 			// get pixels from old image into new image
-			if((OldOffset.Width+NewSize.Width)		> FEDIMAGES[img].Size.Width){
-				printf("Image[%i].Group[%i].Glyph[%i]'s offset+size width is greater than the width of the image, off:%i + size:%i > width:%i\n",img,grp,gly,OldOffset.Width,NewSize.Width,FEDIMAGES[img].Size.Width);
+			if((OldOffset.Width+NewSize.Width)		> IMG.Size.Width){
+				printf("Image.Group[%i].Glyph[%i]'s offset+size width is greater than the width of the image, off:%i + size:%i > width:%i\n",grp,gly,OldOffset.Width,NewSize.Width,IMG.Size.Width);
 				exit((uint32_t)ExitCode::STOMAIMAGEERROREXIT);
 			}
-			if((OldOffset.Height+NewSize.Height)	> FEDIMAGES[img].Size.Height){
-				printf("Image[%i].Group[%i].Glyph[%i]'s offset+size height is greater than the height of the image, off:%i + size:%i > height:%i\n",img,grp,gly,OldOffset.Height,NewSize.Height,FEDIMAGES[img].Size.Height);
+			if((OldOffset.Height+NewSize.Height)	> IMG.Size.Height){
+				printf("Image.Group[%i].Glyph[%i]'s offset+size height is greater than the height of the image, off:%i + size:%i > height:%i\n",grp,gly,OldOffset.Height,NewSize.Height,IMG.Size.Height);
 				exit((uint32_t)ExitCode::STOMAIMAGEERROREXIT);
 			}
 			for(uint32_t h = 0; h < NewSize.Height; h++) {
@@ -313,57 +400,77 @@ std::vector<StomaImagePack::Image> SeperateGlyphs(std::vector<StomaImagePack::Im
 				FedPixelPosition = 	GetCoordinate(
 					OldOffset.Width + w,
 					OldOffset.Height + h,
-					FEDIMAGES[img].Size.Width);
+					IMG.Size.Width);
 				if(HoldPixelPosition > NewPixelCount){
-					printf("new image is too small to take data from Image[%i].Group[%i].Glyph[%i]\n",img,grp,gly);
+					printf("new image is too small to take data from Image.Group[%i].Glyph[%i]\n",grp,gly);
 					exit((uint32_t)ExitCode::STOMAIMAGEERROREXIT);
 				}
 				if(FedPixelPosition > OldPixelCount){
-					printf("old image is too small for Image[%i].Group[%i].Glyph[%i]'s data to be valid\n",img,grp,gly);
+					printf("old image is too small for Image.Group[%i].Glyph[%i]'s data to be valid\n",grp,gly);
 					exit((uint32_t)ExitCode::STOMAIMAGEERROREXIT);
 				}
-				HoldingImage.Pixels[HoldPixelPosition] = FEDIMAGES[img].Pixels[FedPixelPosition];
+				HoldingImage.Pixels[HoldPixelPosition] = IMG.Pixels[FedPixelPosition];
 			}}
 			OutputImages.push_back(HoldingImage);
 		}
-	}}}
-
+	}}
+	#ifdef USING_SANITYCHECKS
+	{
+		std::vector<StomaImagePack::Image>& TestTarget = OutputImages;
+		if((uint32_t)TestTarget.size() == 0){
+			printf("SeperateGlyphs has created a OutputImages count of 0\n");
+			exit(ExitCode::FILECORRUPTION);
+		}
+		for(uint32_t im=0;im<TestTarget.size();im++){
+			if(SanityCheckImageData(TestTarget[im],"SeperateGlyphs Output")){
+				exit(ExitCode::FILECORRUPTION);
+			};
+		}
+	}
+	#endif
 	return OutputImages;
 }
 // clang-format on
 
 StomaImagePack::Image TrimImage(StomaImagePack::Image INPUT){
+	#ifdef USING_SANITYCHECKS
+	{
+		StomaImagePack::Image& TestTarget = INPUT;
+		if(SanityCheckImageData(TestTarget,"TrimImage Input")){
+			exit(ExitCode::FILECORRUPTION);
+		};
+	}
+	#endif
+
 	// NOTE: this was inside of mergeimages but it was additional bug surface area
 	// might change back at some point but for now its isolated into its own segment
 	StomaImagePack::Image OutputImage;
 	// construct an atlas of occupied points
 	std::vector<bool> OccupiedPixels{};
-	StomaImagePack::Glyph& CurrentGlyph = INPUT.Groups[0].Glyphs[0];
+	//StomaImagePack::Glyph& CurrentGlyph = INPUT.Groups[0].Glyphs[0];
 	uint32_t NewPoint,OldPoint;
 	
 	OccupiedPixels.resize(INPUT.Pixels.size());
 	{
-		// ISSUE: this seems to not be painting the height
 		for (uint32_t gr=0; gr<INPUT.Groups.size();gr++) {
 		for (uint32_t gl=0; gl<INPUT.Groups[gr].Glyphs.size();gl++) {
-			CurrentGlyph = INPUT.Groups[gr].Glyphs[gl];
-			if((CurrentGlyph.Size.Width+CurrentGlyph.Offset.Width)>INPUT.Size.Width
-			|| (CurrentGlyph.Size.Height+CurrentGlyph.Offset.Height)>INPUT.Size.Height){
+			if((INPUT.Groups[gr].Glyphs[gl].Size.Width+INPUT.Groups[gr].Glyphs[gl].Offset.Width)>INPUT.Size.Width
+			|| (INPUT.Groups[gr].Glyphs[gl].Size.Height+INPUT.Groups[gr].Glyphs[gl].Offset.Height)>INPUT.Size.Height){
 				printf("Trim Image oob check for Group[%i].glyph[%i] is oob as xoff[%i] + xsiz[%i] > imgxsize[%i] or yoff[%i] + ysiz[%i] > imgysize[%i]\n",
 						gr,gl,
-						CurrentGlyph.Offset.Width,
-						CurrentGlyph.Size.Width,
+						INPUT.Groups[gr].Glyphs[gl].Offset.Width,
+						INPUT.Groups[gr].Glyphs[gl].Size.Width,
 						INPUT.Size.Width,
-						CurrentGlyph.Offset.Height,
-						CurrentGlyph.Size.Height,
+						INPUT.Groups[gr].Glyphs[gl].Offset.Height,
+						INPUT.Groups[gr].Glyphs[gl].Size.Height,
 						INPUT.Size.Height);
 				exit(ExitCode::FILECORRUPTION);
 			}
-			if((CurrentGlyph.Size.Width*CurrentGlyph.Size.Height)!=0){
-				for (uint32_t Y=0;Y<CurrentGlyph.Size.Height;Y++) {
-				for (uint32_t X=0;X<CurrentGlyph.Size.Width;X++) {
-					uint32_t XPos = CurrentGlyph.Offset.Width + X;
-					uint32_t YPos = CurrentGlyph.Offset.Height + Y;
+			if((INPUT.Groups[gr].Glyphs[gl].Size.Width*INPUT.Groups[gr].Glyphs[gl].Size.Height)!=0){
+				for (uint32_t Y=0;Y<INPUT.Groups[gr].Glyphs[gl].Size.Height;Y++) {
+				for (uint32_t X=0;X<INPUT.Groups[gr].Glyphs[gl].Size.Width;X++) {
+					uint32_t XPos = INPUT.Groups[gr].Glyphs[gl].Offset.Width + X;
+					uint32_t YPos = INPUT.Groups[gr].Glyphs[gl].Offset.Height + Y;
 					OldPoint = GetCoordinate(XPos, YPos, INPUT.Size.Width);
 					OccupiedPixels[OldPoint] = true;
 				}}
@@ -424,33 +531,32 @@ StomaImagePack::Image TrimImage(StomaImagePack::Image INPUT){
 		OutputImage.Size = {CropWSize,CropHSize};
 	}
 
+	OutputImage.Groups = INPUT.Groups;
+
+	#ifdef USING_SANITYCHECKS
+	{
+		StomaImagePack::Image& TestTarget = OutputImage;
+		if(SanityCheckImageData(TestTarget,"TrimImage Output")){
+			exit(ExitCode::FILECORRUPTION);
+		};
+	}
+	#endif
+
 	return OutputImage;
 }
 
 StomaImagePack::Image
 MergeImages(std::vector<StomaImagePack::Image> SUBIMAGES) {
-	if(SUBIMAGES.size() == 0){
-		printf("MergeImages recived 0 images\n");
-		exit(ExitCode::FILECORRUPTION);
-	}
 	#ifdef USING_SANITYCHECKS
 	{
-		bool ShouldExit = false;
-		uint32_t ExpectedPixelCount;
-		for(uint32_t i=0;i<SUBIMAGES.size();i++){
-			ExpectedPixelCount =(SUBIMAGES[i].Size.Width*SUBIMAGES[i].Size.Height);
-			if(ExpectedPixelCount != (uint32_t)SUBIMAGES[i].Pixels.size()){
-				printf("MergeImages has received a StomaImagePack::Image [%i] with size corruption w:%i h:%i (total:%i) > pc:%i\n",
-					i,
-					SUBIMAGES[i].Size.Width,SUBIMAGES[i].Size.Height,
-					ExpectedPixelCount,
-					(uint32_t)SUBIMAGES[i].Pixels.size());
-				ShouldExit = true;
-			}
-		
-		}
-		if(ShouldExit){
+		if(SUBIMAGES.size() == 0){
+			printf("MergeImages recived 0 images\n");
 			exit(ExitCode::FILECORRUPTION);
+		}
+		for(uint32_t im=0;im<SUBIMAGES.size();im++){
+			if(SanityCheckImageData(SUBIMAGES[im],"MergeImages Input")){
+				exit(ExitCode::FILECORRUPTION);
+			};
 		}
 	}
 	#endif
@@ -462,6 +568,7 @@ MergeImages(std::vector<StomaImagePack::Image> SUBIMAGES) {
 	#define MERGEALGORITHM_DUMBDUMPANDTRIM
 	#ifdef MERGEALGORITHM_DUMBDUMPANDTRIM
 	// NOTE: this method results in a ton of wasted space as it creates a strip of images being written
+	// thus requiring an additional processing step
 
 	// iterate over all glyphs and get the max x and y required
 	for(uint32_t im = 0; im<SUBIMAGES.size();im++){
@@ -557,16 +664,12 @@ MergeImages(std::vector<StomaImagePack::Image> SUBIMAGES) {
 	// clang-format off
 	
 	#ifdef USING_SANITYCHECKS
-	CanvasSize = (OutputImage.Size.Width*OutputImage.Size.Height);
-	if(CanvasSize != (uint32_t)OutputImage.Pixels.size()){
-		printf("MergeImages has created a StomaImagePack::Image with size corruption w:%i h:%i (total:%i) > pc:%i\n",
-		OutputImage.Size.Width,OutputImage.Size.Height,
-		CanvasSize,
-		(uint32_t)OutputImage.Pixels.size());
-		exit(ExitCode::FILECORRUPTION);
+	{
+		if(SanityCheckImageData(OutputImage,"MergeImages Input")){
+			exit(ExitCode::FILECORRUPTION);
+		};
 	}
 	#endif
-
 	return OutputImage;
 	// clang-format on
 }
@@ -652,6 +755,7 @@ inline uint32_t GetCoordinate(uint32_t XPOS, uint32_t YPOS, uint32_t MAXX) {
 	return (XPOS + (YPOS * MAXX));
 }
 void WriteOut(StomaImagePack::Image IMG, std::string NAM) {
+	// BUG: running 'test font reading' test crashes before getting here
 	if(OutFileType == FileType::PNG) {
 		Write_png(IMG, NAM);
 	} else {
@@ -799,13 +903,11 @@ StomaImagePack::Image Read_ttf(std::string NAM) {
 	}
 
 	#ifdef USING_SANITYCHECKS
-	uint32_t ExpectedPixelCount =(ReturnImage.Size.Width*ReturnImage.Size.Height);
-	if(ExpectedPixelCount != (uint32_t)ReturnImage.Pixels.size()){
-		printf("read_ttf has created a StomaImagePack::Image with size corruption w:%i h:%i (total:%i) > pc:%i\n",
-		ReturnImage.Size.Width,ReturnImage.Size.Height,
-		ExpectedPixelCount,
-		(uint32_t)ReturnImage.Pixels.size());
-		exit(ExitCode::FILECORRUPTION);
+	{
+		StomaImagePack::Image& TestTarget = ReturnImage;
+		if(SanityCheckImageData(TestTarget,"Read_ttf Output")){
+			exit(ExitCode::FILECORRUPTION);
+		};
 	}
 	#endif
 	
@@ -848,28 +950,23 @@ StomaImagePack::Image Read_png(std::string NAM,StomaImagePack::GroupType TYPE) {
 			ReturnImage.Pixels[HoldPosition].A = HoldPixel.alpha;
 		}}
 	}
-	// TODO: add sanitychecks to all functions
 	#ifdef USING_SANITYCHECKS
-	uint32_t ExpectedPixelCount =(ReturnImage.Size.Width*ReturnImage.Size.Height);
-	if(ExpectedPixelCount != (uint32_t)ReturnImage.Pixels.size()){
-		printf("read_png has created a StomaImagePack::Image with size corruption w:%i h:%i (total:%i) > pc:%i\n",
-		ReturnImage.Size.Width,ReturnImage.Size.Height,
-		ExpectedPixelCount,
-		(uint32_t)ReturnImage.Pixels.size());
-		exit(ExitCode::FILECORRUPTION);
+	{
+		StomaImagePack::Image& TestTarget = ReturnImage;
+		if(SanityCheckImageData(TestTarget,"Read_png Output")){
+			exit(ExitCode::FILECORRUPTION);
+		};
 	}
 	#endif
 	return ReturnImage;// returns read image 
 }
 void Write_png(StomaImagePack::Image IMG, std::string NAM) {
 	#ifdef USING_SANITYCHECKS
-	uint32_t ExpectedPixelCount =(IMG.Size.Width*IMG.Size.Height);
-	if(ExpectedPixelCount != (uint32_t)IMG.Pixels.size()){
-		printf("write_png has recived a StomaImagePack::Image with size corruption w:%i h:%i (total:%i) > pc:%i\n",
-		IMG.Size.Width,IMG.Size.Height,
-		ExpectedPixelCount,
-		(uint32_t)IMG.Pixels.size());
-		exit(ExitCode::FILECORRUPTION);
+	{
+		StomaImagePack::Image& TestTarget = IMG;
+		if(SanityCheckImageData(TestTarget,"Write_png Input")){
+			exit(ExitCode::FILECORRUPTION);
+		};
 	}
 	#endif
 	{
@@ -896,7 +993,9 @@ void Write_png(StomaImagePack::Image IMG, std::string NAM) {
 #ifdef USING_PNGHANDROLLED
 StomaImagePack::Image Read_png(std::string NAM,StomaImagePack::GroupType TYPE) {
 	// assumes .png has been trimmed off
-	// NOTE: using pngpp as libpng is a classic needlessly complex library
+	// NOTE: this was created to holdout while pngpp was having glibc error exits
+
+
 	StomaImagePack::Image ReturnImage;
 	std::string SourceDir;
 	std::string GlyphName;
@@ -1168,10 +1267,7 @@ StomaImagePack::Image Read_png(std::string NAM,StomaImagePack::GroupType TYPE) {
 		}
 	}
 	
-	// --output ./ExamplesOutput --shift --name Shifted_ExampleA ./ExamplesData/Textures/ExampleA.png
-	//exit(99);
-	// NOTE: reading seems to work now i just need to write files
-	return ReturnImage;// returns read image 
+	return ReturnImage; 
 }
 //
 void Write_png(StomaImagePack::Image IMG, std::string NAM) {

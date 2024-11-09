@@ -18,28 +18,32 @@
 * "be5invis" and other contributors for the font used in testing https://github.com/be5invis/Iosevka/releases
 # Notes
 to test the program outside of vscode/vscodium cat a test fileinto the built binary, for example
-'./Built/rgbkshifter.bin $(cat ./Tests/Shift.Test)'
+```
+./Built/rgbkshifter.bin $(cat ./Tests/Shift.test)
+```
 and debuging should be done via
-'gdb --args ./Built/rgbkshifter.bin $(cat ./Tests/Shift.Test)'
+```
+gdb --args ./Built/rgbkshifter.bin $(cat ./Tests/Shift.test)
+```
 ## TODO
-* add sanitychecks to all functions
+* add working freetype ttf reading
+* get handrolled png reading done
 * get handrolled png writing done
 * test handrolled png code tested
 * add way to request grouptype for read file
 * fix stimpac not having source name from read files
-* add working freetype ttf reading
 * prevent creation of stimpac's if no files were fed
 * look into creating "sequences" for gifs/animations/variants/bumpmaps
 * make cross platform
 ## DONE
-* get handrolled png reading done
+* get cutup test outputing data
 * add more alias' for commands
 * simplified internals to process on read
 * allow for some files to be palleted with one file and others with another
 * simplify "launch" to serve as usage examples
 
-## FAQ
-# Q: what is RGBKShifter
+# FAQ
+## Q: what is RGBKShifter
 It was originaly a program for pushing image colours to the extremes so that
 they could be used in colour replacement shaders for a failed unity project
 I dabbled with but over time I thought it could be good c++ practice for
@@ -47,13 +51,13 @@ potential jobs and maybe a tool for others wanting a simmilar applicaiton
 eventualy changing into an example project for stoma image pack (stimpac)
 image file format usage
 
-# Q: why a bespoke format and not a series of pngs
+## Q: why a bespoke format and not a series of pngs
 A series of pngs would be cumbersome to read and push into gpu memory
 indevidualy, also gpu texture slots are limited so having all textures of
 a type be in a singular pretiled image is better overall and what most games
 have anyway.
 
-# Q: why did you handroll png reading
+## Q: why did you handroll png reading
 I started running into issuess with glibc when using png++ suddenly
 (while working on ttf reading) and had various frustrations with libpng,
 its docs are garbage and required me looking at the spec for 2 different projects
