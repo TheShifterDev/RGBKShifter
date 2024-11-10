@@ -155,6 +155,23 @@
 			"args": [
 				"--out",
 				"./ExamplesOutput/FontCutup",
+				"--atlas",
+				"--name",
+				"FontCutupOutput",
+				"--format",
+				"png",
+				"./ExamplesData/Fonts/iosevka-regular.ttf",
+			],
+			"cwd": "/home/matthew/Documents/Projects/CPP/rgbkShifter",
+			"program": "${workspaceFolder}/Built/rgbkshifter.bin"
+		},
+		{
+			"name": "Test font cutup",
+			"type": "lldb",
+			"request": "launch",
+			"args": [
+				"--out",
+				"./ExamplesOutput/FontCutup",
 				"--cutup",
 				"--name",
 				"FontCutupOutput",

@@ -26,7 +26,7 @@ and debuging should be done via
 gdb --args ./Built/rgbkshifter.bin $(cat ./Tests/Shift.test)
 ```
 ## TODO
-* add working freetype ttf reading
+* fix freetype ttf reading outputing kneecaped glyphs
 * get handrolled png reading done
 * get handrolled png writing done
 * test handrolled png code tested

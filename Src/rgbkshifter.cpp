@@ -19,6 +19,8 @@
 enum ExitCode{
 	NOERROR = 0,
 	NOARGS,
+	NOIMAGE,
+
 	INVALIDOUTPUTFILEFORMAT,
 	FILECORRUPTION,
 
@@ -115,6 +117,7 @@ std::string HelpText =
 	"Notes\n"
 	"1) arguments must be seperated, (-s -a) is correct, (-sa) will be ignored as an invalid option";
 // clang-format on
+// TODO: add comment start and end chars
 
 int main(int argc, char *argv[]) {
 	// parse args
@@ -215,8 +218,15 @@ int main(int argc, char *argv[]) {
 	if (OutputAtlas){
 		// output single atlas file
 		StomaImagePack::Image AtlasImage;
-		AtlasImage = MergeImages(ImageList);
-		AtlasImage = TrimImage(AtlasImage);
+		if(ImageList.size() == 0){
+			printf("ImageList is empty");
+			exit(ExitCode::NOIMAGE);
+		} else if(ImageList.size() == 1){
+			AtlasImage = ImageList[0];
+		}else{
+			AtlasImage = MergeImages(ImageList);
+		}
+		//AtlasImage = TrimImage(AtlasImage);
 		WriteOut(AtlasImage, OutputDirectory + OutputName);
 	}else{
 		// output as multiple glyph files
@@ -234,7 +244,6 @@ int main(int argc, char *argv[]) {
 	}
 	return 0;
 }
-
 void SliceOutLastOfChar(std::string INP, char TARG, std::string &OutStart,
 						std::string &OutEnd) {
 	uint32_t extenpos = 0;
@@ -263,10 +272,8 @@ std::string LowerCaseify(std::string INP) {
 	}
 	return INP;
 }
-
 bool SanityCheckImageData(StomaImagePack::Image IMG,std::string FUNCNAME){
 	// NOTE: Returns false if data is valid and no errors were found
-	
 	// TEST: Image has a valid width and height
 	if((IMG.Size.Width*IMG.Size.Height) == 0){
 		printf("%s has an image with an invalid width(%i) and height(%i)\n",FUNCNAME.c_str(),
@@ -338,11 +345,9 @@ bool SanityCheckImageData(StomaImagePack::Image IMG,std::string FUNCNAME){
 		}
 	}}
 	}
-
 	// no errors found
 	return false;
 }
-
 // clang-format off
 std::vector<StomaImagePack::Image> SeperateGlyphs(StomaImagePack::Image IMG) {
 	// takes an array of stoma images and cuts every glyph out into its own image
@@ -431,7 +436,6 @@ std::vector<StomaImagePack::Image> SeperateGlyphs(StomaImagePack::Image IMG) {
 	return OutputImages;
 }
 // clang-format on
-
 StomaImagePack::Image TrimImage(StomaImagePack::Image INPUT){
 	#ifdef USING_SANITYCHECKS
 	{
@@ -441,7 +445,6 @@ StomaImagePack::Image TrimImage(StomaImagePack::Image INPUT){
 		};
 	}
 	#endif
-
 	// NOTE: this was inside of mergeimages but it was additional bug surface area
 	// might change back at some point but for now its isolated into its own segment
 	StomaImagePack::Image OutputImage;
@@ -530,9 +533,7 @@ StomaImagePack::Image TrimImage(StomaImagePack::Image INPUT){
 		}}
 		OutputImage.Size = {CropWSize,CropHSize};
 	}
-
 	OutputImage.Groups = INPUT.Groups;
-
 	#ifdef USING_SANITYCHECKS
 	{
 		StomaImagePack::Image& TestTarget = OutputImage;
@@ -541,10 +542,8 @@ StomaImagePack::Image TrimImage(StomaImagePack::Image INPUT){
 		};
 	}
 	#endif
-
 	return OutputImage;
 }
-
 StomaImagePack::Image
 MergeImages(std::vector<StomaImagePack::Image> SUBIMAGES) {
 	#ifdef USING_SANITYCHECKS
@@ -768,8 +767,6 @@ StomaImagePack::Image Read_ttf(std::string NAM) {
 	// NOTE: even though we request a desired size freetype can just ignore it and return an oversized glyph
 	StomaImagePack::Image ReturnImage;
 	// prepare font texture
-	uint32_t DesiredWidth = 64;
-	uint32_t DesiredHeight = 64;
 	
 	// HACK: currently only gets chars within char range 
 	uint32_t DesiredGlyphCount = 128-32;
@@ -799,7 +796,7 @@ StomaImagePack::Image Read_ttf(std::string NAM) {
 		printf("freetype 'FT_New_Face' returned error %i\n",err);
 		exit((uint32_t)ExitCode::FREETYPEERROREXIT);
 	}
-	err = FT_Set_Pixel_Sizes(TypeFace,DesiredWidth,DesiredHeight);
+	err = FT_Set_Pixel_Sizes(TypeFace,64,64);
 	if(err != 0){
 		printf("freetype 'FT_Set_Pixel_Sizes' returned error %i\n",err);
 		exit((uint32_t)ExitCode::FREETYPEERROREXIT);
@@ -828,13 +825,17 @@ StomaImagePack::Image Read_ttf(std::string NAM) {
 		ReturnImage.Groups[0].Glyphs[gl].Offset = {RequiredWidth,0};
 		ReturnImage.Groups[0].Glyphs[gl].Size = {TypeFace->glyph->bitmap.width,TypeFace->glyph->bitmap.rows};
 		// --- increase required width and height
-		RequiredWidth += TypeFace->glyph->bitmap.width;
-		if(RequiredHeight < TypeFace->glyph->bitmap.rows){RequiredHeight = TypeFace->glyph->bitmap.rows;}
+		{
+			RequiredWidth += TypeFace->glyph->bitmap.width;
+			if(RequiredHeight < TypeFace->glyph->bitmap.rows){RequiredHeight = TypeFace->glyph->bitmap.rows;}
+		}
 	}
 	// --- produce the pixel buffer
 	ReturnImage.Size = {RequiredWidth,RequiredHeight};
 	ReturnImage.Pixels.resize(RequiredWidth*RequiredHeight);
 	// --- iterate for pixel transposing
+	RequiredWidth = 0;
+	RequiredHeight = 0;
 	for(uint32_t gl = 0;gl<DesiredGlyphCount;gl++){
 		CurrentChar = gl+32;
 		// --- have freetype draw char to bitmap buffer
@@ -854,32 +855,26 @@ StomaImagePack::Image Read_ttf(std::string NAM) {
 				printf("returned charbuffer is nullptr");
 				exit((uint32_t)ExitCode::FREETYPEERROREXIT);
 			}
-			// --- check if size is fucked
-			if(TypeFace->glyph->bitmap.width != ReturnImage.Groups[0].Glyphs[gl].Size.Width
-			|| TypeFace->glyph->bitmap.rows != ReturnImage.Groups[0].Glyphs[gl].Size.Height){
-				printf("glyph %i (aka %c)'s size is different from its previous size, pw:%i ph:%i != cw:%i ch:%i\n",
-					gl,CurrentChar,
-					TypeFace->glyph->bitmap.width,
-					TypeFace->glyph->bitmap.rows,
-					ReturnImage.Groups[0].Glyphs[gl].Size.Width,
-					ReturnImage.Groups[0].Glyphs[gl].Size.Height);
-				exit((uint32_t)ExitCode::FREETYPEERROREXIT);
-			}
-			if((TypeFace->glyph->bitmap.rows + ReturnImage.Groups[0].Glyphs[gl].Offset.Height) > ReturnImage.Size.Height){
-				printf("glyph %i (aka %c)'s height is greater than the max size, off:%i + hig:%i > max:%i\n",
-					gl,CurrentChar,
-					TypeFace->glyph->bitmap.rows,
-					ReturnImage.Groups[0].Glyphs[gl].Offset.Height,
-					ReturnImage.Size.Height);
-				exit((uint32_t)ExitCode::FREETYPEERROREXIT);
-			}
-			if((TypeFace->glyph->bitmap.width + ReturnImage.Groups[0].Glyphs[gl].Offset.Width) > ReturnImage.Size.Width){
-				printf("glyph %i (aka %c)'s width is greater than the max size, off:%i + wid:%i > max:%i\n",
-		   			gl,CurrentChar,
-					TypeFace->glyph->bitmap.width,
-					ReturnImage.Groups[0].Glyphs[gl].Offset.Width,
-					ReturnImage.Size.Width);
-				exit((uint32_t)ExitCode::FREETYPEERROREXIT);
+			{
+				// TEST: check if previous read and new read sizes are different
+				if(TypeFace->glyph->bitmap.width != ReturnImage.Groups[0].Glyphs[gl].Size.Width
+				|| TypeFace->glyph->bitmap.rows !=  ReturnImage.Groups[0].Glyphs[gl].Size.Height){
+					printf("2nd glyph read(w:%i,h:%i) produced diffent size data than 1st read(w:%i,h:%i)\n",
+						TypeFace->glyph->bitmap.width,
+						TypeFace->glyph->bitmap.rows,
+						ReturnImage.Groups[0].Glyphs[gl].Size.Width,
+						ReturnImage.Groups[0].Glyphs[gl].Size.Height
+					);
+					exit(ExitCode::FREETYPEERROREXIT);
+				}
+				// TEST: check if previous read and new read offsets are different
+				if(RequiredWidth  != ReturnImage.Groups[0].Glyphs[gl].Offset.Width){
+					printf("2nd glyph read(w:%i) produced diffent offset data than 1st read(w:%i)\n",
+						RequiredWidth,
+						ReturnImage.Groups[0].Glyphs[gl].Offset.Width
+					);
+					exit(ExitCode::FREETYPEERROREXIT);
+				}
 			}
 			// --- put bitmap buffer data into colour buffer in glyphs position
 			for(uint32_t pixh = 0;pixh < TypeFace->glyph->bitmap.width;pixh++){
@@ -887,7 +882,7 @@ StomaImagePack::Image Read_ttf(std::string NAM) {
 				TransposingColourPosition = GetCoordinate(
 					pixw,
 					pixh,
-					TypeFace->glyph->bitmap.rows);
+					TypeFace->glyph->bitmap.width);
 				TargetColourPosition = GetCoordinate(
 					ReturnImage.Groups[0].Glyphs[gl].Offset.Width + pixw,
 					ReturnImage.Groups[0].Glyphs[gl].Offset.Height + pixh,
@@ -899,6 +894,12 @@ StomaImagePack::Image Read_ttf(std::string NAM) {
 					TransposingColour,
 					255};
 			}}
+		}
+
+		// --- increase required width and height
+		{
+			RequiredWidth += TypeFace->glyph->bitmap.width;
+			if(RequiredHeight < TypeFace->glyph->bitmap.rows){RequiredHeight = TypeFace->glyph->bitmap.rows;}
 		}
 	}
 

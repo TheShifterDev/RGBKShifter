@@ -1,6 +1,6 @@
 --out
 ./ExamplesOutput/FontCutup
---atlas
+--cutup
 --name
 FontCutupOutput
 --format
