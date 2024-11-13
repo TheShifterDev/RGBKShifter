@@ -226,7 +226,7 @@ int main(int argc, char *argv[]) {
 		}else{
 			AtlasImage = MergeImages(ImageList);
 		}
-		//AtlasImage = TrimImage(AtlasImage);
+		AtlasImage = TrimImage(AtlasImage);
 		WriteOut(AtlasImage, OutputDirectory + OutputName);
 	}else{
 		// output as multiple glyph files
@@ -516,13 +516,9 @@ StomaImagePack::Image TrimImage(StomaImagePack::Image INPUT){
 	}
 	if(CropedSize == (INPUT.Size.Width*INPUT.Size.Height)){
 		// crop unessesary
-		printf("croping was not needed\n");
 		return INPUT;
 	}else{
 		// crop nessesary
-		printf("croping was needed as croped w:%i h:%i != input w:%i h:%i\n",
-			CropWSize,CropHSize,
-			INPUT.Size.Width,INPUT.Size.Height);
 		OutputImage.Pixels.resize(CropedSize);
 		// transpose canvas pixels onto trimmed output image
 		for(uint32_t YPos = 0; YPos < CropHSize; YPos++) {
@@ -781,61 +777,66 @@ StomaImagePack::Image Read_ttf(std::string NAM) {
 
 	uint32_t RequiredWidth = 0;
 	uint32_t RequiredHeight = 0;
-	if(!InitdFreeType){
-		err = FT_Init_FreeType(&FontLibrary);
-		if(err != 0){
-			printf("freetype 'FT_Init_FreeType' returned error %i\n",err);
-			exit((uint32_t)ExitCode::FREETYPEERROREXIT);				
+	{
+		// Init
+		if(!InitdFreeType){
+			err = FT_Init_FreeType(&FontLibrary);
+			if(err != 0){
+				printf("freetype 'FT_Init_FreeType' returned error %i\n",err);
+				exit((uint32_t)ExitCode::FREETYPEERROREXIT);				
+			}
+			InitdFreeType = true;
 		}
-		InitdFreeType = true;
-	}
-	std::string loc = NAM + ".ttf";
-	// --- load in fonts as desired size
-	err = FT_New_Face(FontLibrary,loc.c_str(),0,&TypeFace);
-	if(err != 0){
-		printf("freetype 'FT_New_Face' returned error %i\n",err);
-		exit((uint32_t)ExitCode::FREETYPEERROREXIT);
-	}
-	err = FT_Set_Pixel_Sizes(TypeFace,64,64);
-	if(err != 0){
-		printf("freetype 'FT_Set_Pixel_Sizes' returned error %i\n",err);
-		exit((uint32_t)ExitCode::FREETYPEERROREXIT);
-	}
-	// --- prepare fontgroup
-	ReturnImage.Groups.resize(1);
-	ReturnImage.Groups[0].Name = NAM;
-	ReturnImage.Groups[0].Type = StomaImagePack::GroupType::FONT;
-	ReturnImage.Groups[0].Glyphs.resize(DesiredGlyphCount);
-	// iterate to get size data for the glyphs to construct pixel buffer and glyphdata
-
-	for(uint32_t gl = 0;gl<DesiredGlyphCount;gl++){
-		CurrentChar = gl+32;
-		err = FT_Load_Char(TypeFace,CurrentChar,FT_LOAD_RENDER|FT_LOAD_TARGET_(FT_RENDER_MODE_SDF));
+		std::string loc = NAM + ".ttf";
+		// --- load in fonts as desired size
+		err = FT_New_Face(FontLibrary,loc.c_str(),0,&TypeFace);
 		if(err != 0){
-			printf("freetype 'FT_Load_Char' returned error %i\n",err);
+			printf("freetype 'FT_New_Face' returned error %i\n",err);
 			exit((uint32_t)ExitCode::FREETYPEERROREXIT);
 		}
-		err = FT_Render_Glyph(TypeFace->glyph,FT_RENDER_MODE_NORMAL);
+		err = FT_Set_Pixel_Sizes(TypeFace,64,64);
 		if(err != 0){
-			printf("freetype 'FT_Render_Glyph' returned error %i\n",err);
+			printf("freetype 'FT_Set_Pixel_Sizes' returned error %i\n",err);
 			exit((uint32_t)ExitCode::FREETYPEERROREXIT);
 		}
-		// --- put bitmap info data into glyph
-		ReturnImage.Groups[0].Glyphs[gl].Name = (char)gl+32;
-		ReturnImage.Groups[0].Glyphs[gl].Offset = {RequiredWidth,0};
-		ReturnImage.Groups[0].Glyphs[gl].Size = {TypeFace->glyph->bitmap.width,TypeFace->glyph->bitmap.rows};
-		// --- increase required width and height
-		{
-			RequiredWidth += TypeFace->glyph->bitmap.width;
-			if(RequiredHeight < TypeFace->glyph->bitmap.rows){RequiredHeight = TypeFace->glyph->bitmap.rows;}
-		}
+		// --- prepare fontgroup
+		ReturnImage.Groups.resize(1);
+		ReturnImage.Groups[0].Name = NAM;
+		ReturnImage.Groups[0].Type = StomaImagePack::GroupType::FONT;
+		ReturnImage.Groups[0].Glyphs.resize(DesiredGlyphCount);
+		// iterate to get size data for the glyphs to construct pixel buffer and glyphdata
 	}
-	// --- produce the pixel buffer
-	ReturnImage.Size = {RequiredWidth,RequiredHeight};
-	ReturnImage.Pixels.resize(RequiredWidth*RequiredHeight);
-	// --- iterate for pixel transposing
-	RequiredWidth = 0;
-	RequiredHeight = 0;
+	{
+		// prepare glyph canvas
+		for(uint32_t gl = 0;gl<DesiredGlyphCount;gl++){
+			CurrentChar = gl+32;
+			err = FT_Load_Char(TypeFace,CurrentChar,FT_LOAD_RENDER|FT_LOAD_TARGET_(FT_RENDER_MODE_SDF));
+			if(err != 0){
+				printf("freetype 'FT_Load_Char' returned error %i\n",err);
+				exit((uint32_t)ExitCode::FREETYPEERROREXIT);
+			}
+			err = FT_Render_Glyph(TypeFace->glyph,FT_RENDER_MODE_NORMAL);
+			if(err != 0){
+				printf("freetype 'FT_Render_Glyph' returned error %i\n",err);
+				exit((uint32_t)ExitCode::FREETYPEERROREXIT);
+			}
+			// --- put bitmap info data into glyph
+			ReturnImage.Groups[0].Glyphs[gl].Name = (char)gl+32;
+			ReturnImage.Groups[0].Glyphs[gl].Offset = {RequiredWidth,0};
+			ReturnImage.Groups[0].Glyphs[gl].Size = {TypeFace->glyph->bitmap.width,TypeFace->glyph->bitmap.rows};
+			// --- increase required width and height
+			{
+				RequiredWidth += TypeFace->glyph->bitmap.width;
+				if(RequiredHeight < TypeFace->glyph->bitmap.rows){RequiredHeight = TypeFace->glyph->bitmap.rows;}
+			}
+		}
+		// --- produce the pixel buffer
+		ReturnImage.Size = {RequiredWidth,RequiredHeight};
+		ReturnImage.Pixels.resize(RequiredWidth*RequiredHeight);
+		// --- iterate for pixel transposing
+		RequiredWidth = 0;
+		RequiredHeight = 0;
+	}
 	for(uint32_t gl = 0;gl<DesiredGlyphCount;gl++){
 		CurrentChar = gl+32;
 		// --- have freetype draw char to bitmap buffer
@@ -877,8 +878,8 @@ StomaImagePack::Image Read_ttf(std::string NAM) {
 				}
 			}
 			// --- put bitmap buffer data into colour buffer in glyphs position
-			for(uint32_t pixh = 0;pixh < TypeFace->glyph->bitmap.width;pixh++){
-			for(uint32_t pixw = 0;pixw < TypeFace->glyph->bitmap.rows ;pixw++){
+			for(uint32_t pixh = 0;pixh < ReturnImage.Groups[0].Glyphs[gl].Size.Height;pixh++){
+			for(uint32_t pixw = 0;pixw < ReturnImage.Groups[0].Glyphs[gl].Size.Width;pixw++){
 				TransposingColourPosition = GetCoordinate(
 					pixw,
 					pixh,
@@ -925,7 +926,6 @@ StomaImagePack::Image Read_png(std::string NAM,StomaImagePack::GroupType TYPE) {
 	uint32_t HoldPosition;
 	
 	std::string FileName = NAM+".png";
-	printf("'FileName' = %s\n",FileName.c_str());
 	{
 		png::rgba_pixel HoldPixel;
 		png::image<png::rgba_pixel> PngFile(NAM + ".png");
@@ -962,14 +962,12 @@ StomaImagePack::Image Read_png(std::string NAM,StomaImagePack::GroupType TYPE) {
 	return ReturnImage;// returns read image 
 }
 void Write_png(StomaImagePack::Image IMG, std::string NAM) {
-	#ifdef USING_SANITYCHECKS
 	{
-		StomaImagePack::Image& TestTarget = IMG;
-		if(SanityCheckImageData(TestTarget,"Write_png Input")){
+		// sanity test
+		if(SanityCheckImageData(IMG,"Write_png Input")){
 			exit(ExitCode::FILECORRUPTION);
 		};
 	}
-	#endif
 	{
 		png::image<png::rgba_pixel> WriteFile;
 		if(WriteFile.get_width() != IMG.Size.Width
@@ -1002,7 +1000,6 @@ StomaImagePack::Image Read_png(std::string NAM,StomaImagePack::GroupType TYPE) {
 	std::string GlyphName;
 	
 	std::string FileName = NAM+".png";
-	printf("'FileName' = %s\n",FileName.c_str());
 	// reads entire file to char array
 	std::ifstream ReadFile;
 	std::vector<uint8_t> CharVector;
