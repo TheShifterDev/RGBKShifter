@@ -26,21 +26,20 @@ and debuging should be done via
 gdb --args ./Built/rgbkshifter.bin $(cat ./Tests/Shift.test)
 ```
 ## TODO
-* fix freetype ttf reading outputing kneecaped glyphs
+* test way of naming groups
+* add way to request grouptype for read file
 * get handrolled png reading done
 * get handrolled png writing done
 * test handrolled png code tested
-* add way to request grouptype for read file
 * fix stimpac not having source name from read files
-* prevent creation of stimpac's if no files were fed
 * look into creating "sequences" for gifs/animations/variants/bumpmaps
 * make cross platform
 ## DONE
-* get cutup test outputing data
-* add more alias' for commands
-* simplified internals to process on read
-* allow for some files to be palleted with one file and others with another
-* simplify "launch" to serve as usage examples
+* add way of naming groups
+* prevent creation of output files if no input files were read
+* fix freetype ttf reading outputing kneecaped glyphs
+* fix crashes on reading stimpacs containing font data
+* create a simple unit test suite to run all test files
 
 # FAQ
 ## Q: what is RGBKShifter

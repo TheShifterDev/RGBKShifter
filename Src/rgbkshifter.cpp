@@ -18,8 +18,8 @@
 
 enum ExitCode{
 	NOERROR = 0,
-	NOARGS,
-	NOIMAGE,
+
+	INVALIDGROUP,
 
 	INVALIDOUTPUTFILEFORMAT,
 	FILECORRUPTION,
@@ -56,7 +56,7 @@ FT_Library FontLibrary;
 
 void Write_png(StomaImagePack::Image IMG, std::string NAM);
 
-StomaImagePack::Image Read_png(std::string NAM,StomaImagePack::GroupType TYPE);
+StomaImagePack::Image Read_png(std::string NAM,StomaImagePack::GroupType TYPE,std::string GRPNAM);
 StomaImagePack::Image Read_ttf(std::string NAM);
 void SliceOutLastOfChar(std::string INP, char TARG, std::string &OutStart,
 						std::string &OutEnd);
@@ -83,11 +83,11 @@ ExtractPallet_Image(StomaImagePack::Image IMG);
 // commands
 ColourCommands ChangeReadFileColour = ColourCommands::ASIS; 
 FileType OutFileType = FileType::PNG;	
-bool OutputAtlas = true;
-
+bool OutputAtlas = true;// used in -a/--atlas
+std::string BatchName = ""; // used in -b/--batch
 std::string OutputName = "rgbkshifted"; // used in -n/--name
 std::string OutputDirectory = "";		 // used in -o/--out
-StomaImagePack::GroupType CurrentReadingType = StomaImagePack::GroupType::REGULAR;
+StomaImagePack::GroupType CurrentReadingType = StomaImagePack::GroupType::REGULAR; // used in -g/--group
 // clang-format off
 std::vector<StomaImagePack::Colour> ExtremeColours{
 	// shifter pallet
@@ -101,75 +101,143 @@ std::vector<StomaImagePack::Colour> ExtremeColours{
 	{0, 0, 255, 255},	  // blue
 };
 std::vector<StomaImagePack::Colour> PalletColours = ExtremeColours;
+
+uint32_t ValidArguments = 0;
 // clang-format on
 
 // clang-format off
 std::string HelpText =
-	"Arguments							Description\n"
-	"-s/--shift							= shifts fed images colours to the extremes !!!disables paletise!!!\n"
-	"-p/--palet/--paletise <PALETFILE>	= paletises	all input images with the palet file !!!disables shift!!!\n"
-	"-c/--cutup							= outputs any input file/s glyphs as images ! default ! !!!disables atlas!!!\n"
-	"-a/--atlas							= packs all fed files into a single output file !!!disables cutup!!!\n"
-	"-o/--out/--output <DIRECTORY>		= DIRECTORY arg is the location of the writen file/s\n"
-	"-f/--format <FORMAT>				= FORMAT arg is the file type of the output file/s \"png\" or \"stimpac\"\n"
+
+	"General notes\n"
+	"arguments must be seperated, (-s -a) is correct, (-sa) will be ignored as an invalid option\n"
+	"---\n"
+	"Data arguments"
+	"Data notes\n"
+	"arguments are last prioritising so if two '-o' are given the last '-o' will be the one seen as being the output target\n"
+	"ARGUMENTS							DESCRIPTION\n"
+	"-o/--out/--output <DIRECTORY>		= DIRECTORY arg is the location of the writen file/s.\n"
+	"-f/--format <FORMAT>				= FORMAT arg is the file type of the output file/s 'png' or 'stimpac'\n"
 	"-n/--name <NAME>					= NAME arg is the saved name of the packed file OR the prefix of all shifted files\n"
+	"-g/--group <GROUP>					= GROUP arg is the grouptype of the NON STIMPAC files occuring after it. 'regular' or 'normalmap'\n"
+	"-b/--batch <BATCH>					= BATCH arg is the 'groupname' for the NON STIMPAC images occuring after it. default is blank\n"
 	"-h/--help							= print this help text\n"
-	"Notes\n"
-	"1) arguments must be seperated, (-s -a) is correct, (-sa) will be ignored as an invalid option";
+	"---\n"
+	"Shift and Palet"
+	"ARGUMENTS							DESCRIPTION\n"
+	"-s/--shift							= images fed after this are shifted to the nearest RGB extreme [default behaviour]\n"
+	"-p/--palet/--paletise <PALETFILE>	= images fed after this are paletised based on the next image aka 'PALETFILE'\n"
+	"---\n"
+	"Cutup and Atlas"
+	"ARGUMENTS							DESCRIPTION\n"
+	"-c/--cutup							= outputs any input file/s glyphs as images [default behaviour]\n"
+	"-a/--atlas							= packs all fed files into a single output file\n"
+	;
+
 // clang-format on
-// TODO: add comment start and end chars
+// NOTE: comments cannot be a feature as line ends cannot be relied opon as endings
+
+void NoArgsExit(void){
+	printf("No args given.\nUse -h or --help for help.\n");
+	exit((uint32_t)ExitCode::NOERROR);
+}
+void NoFilesExit(void){
+	printf("no images given.\nUse -h or --help for help.\n");
+	exit(NOERROR);
+}
+
+bool inline StrCmp(const char* A,const char* B){
+	// NOTE: returns true on match and false on no match
+	// NOTE: only exists because strcmp returns the oposite of what a normal human expects
+	return !strcmp(A,B);
+}
 
 int main(int argc, char *argv[]) {
 	// parse args
 	std::vector<StomaImagePack::Image> ImageList;
-	std::string hold;
-	int t_i = 1;
+	// NOTE: arg 0 is always the dir the prog was ran from
 	if(argc == 1) {
-		printf("No args input.\nUse -h or --help for help.\n");
-		exit((uint32_t)ExitCode::NOARGS);
+		NoArgsExit();
 	}
-	while(t_i < argc) {
-		hold = argv[t_i];
-		// hold = MakeLowerCase::Lower(hold);
-		if(hold[0] == '-') {
-			if(hold == "-h" || hold == "--help") {
+	int i = 1;
+	while(i < argc) {
+		if(argv[i][0] == '-') {
+			if(StrCmp(argv[i],"-h") 
+			|| StrCmp(argv[i],"--help")) {
 				// help request
 				printf("%s\n", HelpText.c_str());
-				exit((ExitCode::NOERROR));
-			} else if(hold == "-n" || hold == "--name") {
+				exit(ExitCode::NOERROR);
+			} else if(StrCmp(argv[i],"-g") 
+					||StrCmp(argv[i],"--group")){
+				ValidArguments++;
+				// group of following images
+				std::string TempString = argv[i + 1];
+				TempString = LowerCaseify(TempString);
+				if(TempString == "regular"){
+					CurrentReadingType = StomaImagePack::GroupType::REGULAR;
+				} else if (TempString == "normalmap"){
+					CurrentReadingType = StomaImagePack::GroupType::NORMALMAP;
+
+				}else{
+					printf("Invalid group %s\nUse -h or --help for help.\n",TempString.c_str());
+					exit(ExitCode::INVALIDGROUP);
+				}					
+				i += 2;
+			} else if(StrCmp(argv[i],"-n")
+					||StrCmp(argv[i],"--name")) {
+				ValidArguments++;
 				// output prefix
-				OutputName = argv[t_i + 1];
-				t_i += 2;
-			} else if(hold == "-o" || hold == "--out"|| hold == "--output") {
+				OutputName = argv[i + 1];
+				i += 2;
+			} else if(StrCmp(argv[i],"-b")
+					||StrCmp(argv[i],"--batch")){
+				ValidArguments++;
+				// batchname
+				BatchName = argv[i + 1];
+				i+=2;
+			} else if(StrCmp(argv[i],"-o") 
+					||StrCmp(argv[i],"--out")
+					||StrCmp(argv[i],"--output")) {
+				ValidArguments++;
 				// output location
-				OutputDirectory = argv[t_i + 1];
+				OutputDirectory = argv[i + 1];
 				OutputDirectory += '/';
-				t_i += 2;
-			} else if(hold == "-p" || hold == "--palet" || hold == "--paletise") {
+				i += 2;
+			} else if(StrCmp(argv[i],"-p")
+					||StrCmp(argv[i],"--palet")
+					||StrCmp(argv[i],"--paletise")) {
+				ValidArguments++;
 				// palett to use
 				std::string PalletName;
 				std::string PalletExtension;
 				StomaImagePack::Image PalletImage;
-				SliceOutLastOfChar(argv[t_i + 1], '.', PalletName, PalletExtension);
+				SliceOutLastOfChar(argv[i + 1], '.', PalletName, PalletExtension);
 				if(PalletExtension == "png") {
-					PalletImage = Read_png(PalletName,StomaImagePack::GroupType::REGULAR);
+					PalletImage = Read_png(PalletName,StomaImagePack::GroupType::PALET,"");
 					PalletColours = ExtractPallet_Image(PalletImage);
 				}
 				ChangeReadFileColour = ColourCommands::PALET;
-				t_i += 2;
-			} else if(hold == "-s" || hold == "--shift") {
+				i += 2;
+			} else if(StrCmp(argv[i],"-s") 
+					||StrCmp(argv[i],"--shift")){
+				ValidArguments++;
 				// shift the values of all input files
 				ChangeReadFileColour = ColourCommands::SHIFT;
-				t_i++;
-			} else if(hold == "-a" || hold == "--atlas") {
+				i++;
+			} else if(StrCmp(argv[i],"-a")
+					||StrCmp(argv[i],"--atlas")) {
+				ValidArguments++;
 				OutputAtlas = true;
-				t_i++;
-			} else if(hold == "-c" || hold == "--cutup") {
+				i++;
+			} else if(StrCmp(argv[i],"-c") 
+					||StrCmp(argv[i],"--cutup")) {
+				ValidArguments++;
 				OutputAtlas = false;
-				t_i++;
-			} else if(hold == "-f" || hold == "--format") {
-				std::string TempString = argv[t_i + 1];
-				t_i += 2;
+				i++;
+			} else if(StrCmp(argv[i],"-f")
+					||StrCmp(argv[i],"--format")) {
+				ValidArguments++;
+				std::string TempString = argv[i + 1];
+				i += 2;
 				if(TempString == "png") {
 					OutFileType = FileType::PNG;
 				} else if(TempString == "stimpac") {
@@ -177,7 +245,7 @@ int main(int argc, char *argv[]) {
 				}
 			} else {
 				// invalid - option
-				t_i++;
+				i++;
 			}
 		} else { // its a file
 			std::string ImageName = "";
@@ -185,9 +253,9 @@ int main(int argc, char *argv[]) {
 			std::string ReadLocation = "";
 			StomaImagePack::Image TempImage;
 			// split "./gorbinos/file.png" to "./gorbinos/file" & "png"
-			SliceOutLastOfChar(hold, '.', ImageName, ImageExtension);
+			SliceOutLastOfChar(argv[i], '.', ImageName, ImageExtension);
 			if(ImageExtension == "png") {
-				TempImage = Read_png(ImageName,CurrentReadingType);
+				TempImage = Read_png(ImageName,CurrentReadingType,BatchName);
 			} else if(ImageExtension == "stimpac") {
 				TempImage = StomaImagePack::ReadStimpac(ImageName);
 			} else if(ImageExtension == "ttf"){
@@ -210,18 +278,22 @@ int main(int argc, char *argv[]) {
 			}
 			ImageList.push_back(TempImage);
 			skippalet:;
-			t_i++;
+			i++;
 		}
 	}
-
+	// test if any args were given
+	if(ValidArguments == 0){
+		NoArgsExit();
+	}
+	// test if any files were given
+	if (ImageList.size() == 0){
+		NoFilesExit();
+	}
 	// write file
 	if (OutputAtlas){
 		// output single atlas file
 		StomaImagePack::Image AtlasImage;
-		if(ImageList.size() == 0){
-			printf("ImageList is empty");
-			exit(ExitCode::NOIMAGE);
-		} else if(ImageList.size() == 1){
+		if(ImageList.size() == 1){
 			AtlasImage = ImageList[0];
 		}else{
 			AtlasImage = MergeImages(ImageList);
@@ -232,8 +304,8 @@ int main(int argc, char *argv[]) {
 		// output as multiple glyph files
 		for(uint32_t q=0;q<ImageList.size();q++){
 			std::vector<StomaImagePack::Image> GlyphImageList = SeperateGlyphs(ImageList[q]);
-			for(uint32_t i = 0; i < GlyphImageList.size(); i++) {
-				WriteOut(GlyphImageList[i],
+			for(uint32_t gl = 0; gl < GlyphImageList.size(); gl++) {
+				WriteOut(GlyphImageList[gl],
 					OutputDirectory + OutputName +"_"+ GlyphImageList[i].Groups[0].Name +"_"+ GlyphImageList[i].Groups[0].Glyphs[0].Name);
 			}
 		}
@@ -754,6 +826,7 @@ void WriteOut(StomaImagePack::Image IMG, std::string NAM) {
 	if(OutFileType == FileType::PNG) {
 		Write_png(IMG, NAM);
 	} else {
+		// assume stimpac
 		StomaImagePack::WriteStimpac(IMG, NAM);
 	}
 }
@@ -923,15 +996,13 @@ StomaImagePack::Image Read_ttf(std::string NAM) {
 }
 // -------------------------------------PNG++
 #ifdef USING_PNGPP
-StomaImagePack::Image Read_png(std::string NAM,StomaImagePack::GroupType TYPE) {
+StomaImagePack::Image Read_png(std::string NAM,StomaImagePack::GroupType TYPE,std::string GRPNAM){
 	// assumes .png has been trimmed off
 	// NOTE: using pngpp as libpng is a classic needlessly complex library
 	StomaImagePack::Image ReturnImage;
 	std::string SourceDir;
 	std::string GlyphName;
 	uint32_t HoldPosition;
-	
-	std::string FileName = NAM+".png";
 	{
 		png::rgba_pixel HoldPixel;
 		png::image<png::rgba_pixel> PngFile(NAM + ".png");
@@ -941,7 +1012,7 @@ StomaImagePack::Image Read_png(std::string NAM,StomaImagePack::GroupType TYPE) {
 		ReturnImage.Groups.resize(1);
 		ReturnImage.Groups[0].Glyphs.resize(1);
 		SliceOutLastOfChar(NAM, '/', SourceDir, GlyphName);
-		ReturnImage.Groups[0].Name = "";
+		ReturnImage.Groups[0].Name = GRPNAM;
 		ReturnImage.Groups[0].Type = TYPE;
 		ReturnImage.Groups[0].Glyphs[0].Name = GlyphName;
 		ReturnImage.Groups[0].Glyphs[0].Size = ReturnImage.Size;
@@ -1030,7 +1101,7 @@ StomaImagePack::Image Read_png(std::string NAM,StomaImagePack::GroupType TYPE) {
 
 	ReadFile.open(FileName,std::ios::binary);
 	if(!ReadFile.is_open()) {
-		printf("could not read %s.\n", NAM.c_str());
+		printf("could not read '%s.%s'.\n", NAM.c_str(),".png");
 		exit(1);
 	}
 	while(ReadFile.get(HoldChar)) {
