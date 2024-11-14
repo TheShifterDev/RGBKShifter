@@ -1,8 +1,8 @@
+--name
+H_FontRead
 --out
 ./ExamplesOutput
 --atlas
---name
-H_FontRead
 --format
 png
 ./ExamplesData/Fonts/iosevka-regular.ttf

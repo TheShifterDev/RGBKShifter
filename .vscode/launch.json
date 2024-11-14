@@ -2,31 +2,31 @@
 	"version": "0.2.0",
 	"configurations": [
 		{
-			"name": "Shift",
+			"name": "A_Shift",
 			"type": "lldb",
 			"request": "launch",
 			"args": [
+				"--name",
+				"A_Shift",
 				"--output",
 				"./ExamplesOutput",
 				"--shift",
-				"--name",
-				"Shifted_ExampleA",
 				"./ExamplesData/Textures/ExampleA.png"
 			],
 			"cwd": "/home/matthew/Documents/Projects/CPP/rgbkShifter",
 			"program": "${workspaceFolder}/Built/rgbkshifter.bin"
 		},
 		{
-			"name": "Amber-Glow_Paletise",
+			"name": "B_AmberGlowPalet",
 			"type": "lldb",
 			"request": "launch",
 			"args": [
+				"--name",
+				"B_AmberGlowPalet",
 				"--output",
 				"./ExamplesOutput",
 				"--palet",
 				"./ExamplesData/Pallets/amber-glow.png",
-				"--name",
-				"Amber-Glow_Paletised_ExampleAandB",
 				"./ExamplesData/Textures/ExampleA.png",
 				"./ExamplesData/Textures/ExampleB.png",
 			],
@@ -34,16 +34,16 @@
 			"program": "${workspaceFolder}/Built/rgbkshifter.bin"
 		},
 		{
-			"name": "Japanese-Woodblock_Paletise",
+			"name": "C_JapWoodPalet",
 			"type": "lldb",
 			"request": "launch",
 			"args": [
+				"--name",
+				"C_JapWoodPalet",
 				"--output",
 				"./ExamplesOutput",
 				"--palet",
 				"./ExamplesData/Pallets/japanese-woodblock.png",
-				"--name",
-				"Japanese-Woodblock_Paletised_ExampleCandD",
 				"./ExamplesData/Textures/ExampleC.png",
 				"./ExamplesData/Textures/ExampleD.png",
 			],
@@ -51,15 +51,15 @@
 			"program": "${workspaceFolder}/Built/rgbkshifter.bin"
 		},
 		{
-			"name": "Atlas",
+			"name": "D_Atlas",
 			"type": "lldb",
 			"request": "launch",
 			"args": [
+				"--name",
+				"D_Atlas",
 				"--output",
 				"./ExamplesOutput",
 				"--atlas",
-				"--name",
-				"TestAtlas",
 				"./ExamplesData/Textures/ExampleA.png",
 				"./ExamplesData/Textures/ExampleB.png",
 				"./ExamplesData/Textures/ExampleC.png",
@@ -69,17 +69,17 @@
 			"program": "${workspaceFolder}/Built/rgbkshifter.bin"
 		},
 		{
-			"name": "Paletised Atlas",
+			"name": "E_PaletAtlas",
 			"type": "lldb",
 			"request": "launch",
 			"args": [
+				"--name",
+				"E_PalletAtlas",
 				"--output",
 				"./ExamplesOutput",
 				"--format",
 				"png",
 				"--atlas",
-				"--name",
-				"TestPalletAtlas",
 				"--palet",
 				"./ExamplesData/Pallets/japanese-woodblock.png",
 				"./ExamplesData/Textures/ExampleA.png",
@@ -91,17 +91,17 @@
 			"program": "${workspaceFolder}/Built/rgbkshifter.bin"
 		},
 		{
-			"name": "Dual Palet Atlas",
+			"name": "F_DualPaletAtlas",
 			"type": "lldb",
 			"request": "launch",
 			"args": [
+				"--name",
+				"F_DualPaletAtlas",
 				"--output",
 				"./ExamplesOutput",
 				"--format",
 				"png",
 				"--atlas",
-				"--name",
-				"TestDualPalletAtlas",
 				"--palet",
 				"./ExamplesData/Pallets/japanese-woodblock.png",
 				"./ExamplesData/Textures/ExampleA.png",
@@ -115,17 +115,17 @@
 			"program": "${workspaceFolder}/Built/rgbkshifter.bin"
 		},
 		{
-			"name": "Stimpac Atlas",
+			"name": "G_A_StimpacAtlas",
 			"type": "lldb",
 			"request": "launch",
 			"args": [
+				"--name",
+				"G_A_StimpacAtlas",
 				"--output",
 				"./ExamplesOutput",
 				"--atlas",
 				"--format",
 				"stimpac",
-				"--name",
-				"TestAtlas",
 				"./ExamplesData/Textures/ExampleA.png",
 				"./ExamplesData/Textures/ExampleB.png",
 				"./ExamplesData/Textures/ExampleC.png",
@@ -135,29 +135,30 @@
 			"program": "${workspaceFolder}/Built/rgbkshifter.bin"
 		},
 		{
-			"name": "Cut up Atlas",
+			"name": "G_B_CutupAtlas",
 			"type": "lldb",
 			"request": "launch",
 			"args": [
-				"--output",
-				"./ExamplesOutput/Cutup",
-				"--cutup",
 				"--name",
-				"TestCutup",
-				"./ExamplesOutput/TestAtlas.stimpac",
+				"G_B_CutupAtlas",
+				"--output",
+				"./ExamplesOutput",
+				"--cutup",
+				"./ExamplesOutput/G_A_StimpacAtlas.stimpac",
 			],
 			"cwd": "/home/matthew/Documents/Projects/CPP/rgbkShifter",
 			"program": "${workspaceFolder}/Built/rgbkshifter.bin"
-		},{
-			"name": "Test font reading",
+		},
+		{
+			"name": "H_FontRead",
 			"type": "lldb",
 			"request": "launch",
 			"args": [
+				"--name",
+				"H_FontRead",
 				"--out",
-				"./ExamplesOutput/FontCutup",
+				"./ExamplesOutput",
 				"--atlas",
-				"--name",
-				"FontCutupOutput",
 				"--format",
 				"png",
 				"./ExamplesData/Fonts/iosevka-regular.ttf",
@@ -166,15 +167,15 @@
 			"program": "${workspaceFolder}/Built/rgbkshifter.bin"
 		},
 		{
-			"name": "Test font cutup",
+			"name": "I_FontCutup",
 			"type": "lldb",
 			"request": "launch",
 			"args": [
+				"--name",
+				"I_FontCutup",
 				"--out",
-				"./ExamplesOutput/FontCutup",
+				"./ExamplesOutput",
 				"--cutup",
-				"--name",
-				"FontCutupOutput",
 				"--format",
 				"png",
 				"./ExamplesData/Fonts/iosevka-regular.ttf",
@@ -183,23 +184,110 @@
 			"program": "${workspaceFolder}/Built/rgbkshifter.bin"
 		},
 		{
-			"name": "Test extracting font glyphs",
+			"name": "J_ExtractFontGlyphs",
 			"type": "lldb",
 			"request": "launch",
 			"args": [
-				"--output",
-				"./ExamplesOutput/Cutup",
-				"--cutup",
 				"--name",
-				"FontCutup",
+				"J_ExtractFontGlyphs",
+				"--output",
+				"./ExamplesOutput",
+				"--cutup",
 				"--format",
 				"png",
 				"./ExamplesData/Fonts/iosevka-regular.ttf"
 			],
 			"cwd": "/home/matthew/Documents/Projects/CPP/rgbkShifter",
 			"program": "${workspaceFolder}/Built/rgbkshifter.bin"
-
-
+		},
+		{
+			"name": "K_NoImage",
+			"type": "lldb",
+			"request": "launch",
+			"args": [
+				"--name",
+				"K_NoImage",
+				"--output",
+				"./ExamplesOutput",
+				"--atlas",
+				"--format",
+				"png",
+			],
+			"cwd": "/home/matthew/Documents/Projects/CPP/rgbkShifter",
+			"program": "${workspaceFolder}/Built/rgbkshifter.bin"
+		},
+		{
+			"name": "L_NoArgs",
+			"type": "lldb",
+			"request": "launch",
+			"args": [],
+			"cwd": "/home/matthew/Documents/Projects/CPP/rgbkShifter",
+			"program": "${workspaceFolder}/Built/rgbkshifter.bin"
+		},
+		{
+			"name": "M_Help",
+			"type": "lldb",
+			"request": "launch",
+			"args": [
+				"--name",
+				"M_Help",
+				"--help",
+			],
+			"cwd": "/home/matthew/Documents/Projects/CPP/rgbkShifter",
+			"program": "${workspaceFolder}/Built/rgbkshifter.bin"
+		},
+		{
+			"name": "N_A_MultipleStimpacs",
+			"type": "lldb",
+			"request": "launch",
+			"args": [
+				"--name",
+				"N_A_MultipleStimpacs",
+				"--output",
+				"./ExamplesOutput",
+				"--format",
+				"stimpac",
+				"--cutup",
+				"--palet",
+				"./ExamplesData/Pallets/japanese-woodblock.png",
+				"./ExamplesData/Textures/ExampleA.png",
+				"./ExamplesData/Textures/ExampleB.png",
+				"--palet",
+				"./ExamplesData/Pallets/amber-glow.png",
+				"./ExamplesData/Textures/ExampleC.png",
+				"./ExamplesData/Textures/ExampleD.png",
+			],
+			"cwd": "/home/matthew/Documents/Projects/CPP/rgbkShifter",
+			"program": "${workspaceFolder}/Built/rgbkshifter.bin"
+		},
+		{
+			"name": "N_B_MergeStimpacs",
+			"type": "lldb",
+			"request": "launch",
+			"args": [
+				"--name",
+				"N_B_MergeStimpacs",
+				"--out",
+				"./ExamplesOutput",
+				"--atlas",
+				"--format",
+				"png",
+				"./ExamplesOutput/N_A_MultipleStimpacs__ExampleA.stimpac",
+				"./ExamplesOutput/N_A_MultipleStimpacs__ExampleB.stimpac",
+				"./ExamplesOutput/N_A_MultipleStimpacs__ExampleC.stimpac",
+				"./ExamplesOutput/N_A_MultipleStimpacs__ExampleD.stimpac",
+			],
+			"cwd": "/home/matthew/Documents/Projects/CPP/rgbkShifter",
+			"program": "${workspaceFolder}/Built/rgbkshifter.bin"
+		},
+		{
+			"name": "O_NameGroup",
+			"type": "lldb",
+			"request": "launch",
+			"args": [
+			],
+			"cwd": "/home/matthew/Documents/Projects/CPP/rgbkShifter",
+			"program": "${workspaceFolder}/Built/rgbkshifter.bin"
 		}
 	]
 }

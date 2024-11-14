@@ -1,8 +1,8 @@
+--name
+B_AmberGlowPalet
 --output 
 ./ExamplesOutput
 --palet
 ./ExamplesData/Pallets/amber-glow.png
---name
-B_AmberGlowPalet
 ./ExamplesData/Textures/ExampleA.png
 ./ExamplesData/Textures/ExampleB.png

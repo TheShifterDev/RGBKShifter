@@ -1,8 +1,8 @@
+--name
+J_ExtractFontGlyphs
 --output
 ./ExamplesOutput
 --cutup
---name
-J_ExtractFontGlyphs
 --format
 png
 ./ExamplesData/Fonts/iosevka-regular.ttf

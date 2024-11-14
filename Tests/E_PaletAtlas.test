@@ -1,10 +1,10 @@
+--name
+E_PaletAtlas
 --output
 ./ExamplesOutput
 --format
 png
 --atlas
---name
-E_PaletAtlas
 --palet
 ./ExamplesData/Pallets/japanese-woodblock.png
 ./ExamplesData/Textures/ExampleA.png

@@ -1,6 +1,6 @@
+--name
+A_Shift
 --output
 ./ExamplesOutput
 --shift
---name
-A_Shift
 ./ExamplesData/Textures/ExampleA.png

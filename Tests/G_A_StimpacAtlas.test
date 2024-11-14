@@ -1,10 +1,10 @@
+--name
+G_A_StimpacAtlas
 --output
 ./ExamplesOutput
 --atlas
 --format
 stimpac
---name
-G_A_StimpacAtlas
 ./ExamplesData/Textures/ExampleA.png
 ./ExamplesData/Textures/ExampleB.png
 ./ExamplesData/Textures/ExampleC.png

@@ -1,8 +1,8 @@
+--name
+D_Atlas
 --output
 ./ExamplesOutput
 --atlas
---name
-D_Atlas
 ./ExamplesData/Textures/ExampleA.png
 ./ExamplesData/Textures/ExampleB.png
 ./ExamplesData/Textures/ExampleC.png

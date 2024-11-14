@@ -1,10 +1,10 @@
+--name
+N_A_MultipleStimpacs
 --output
 ./ExamplesOutput
 --format
 stimpac
 --cutup
---name
-N_A_MultipleStimpacs
 --palet
 ./ExamplesData/Pallets/japanese-woodblock.png
 ./ExamplesData/Textures/ExampleA.png

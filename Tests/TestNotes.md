@@ -28,7 +28,7 @@ just a test of what happens if rgbk is ran by itself
 test of what happens when a few args and --help are input
 # N_A_MultipleStimpacs
 just to see if it will actualy output multiple stimpacs if requested, even though its a waste of the format
-# N_B
+# N_B_MergeStimpacs
 
 # O_NameGroup
 test group naming to see if 

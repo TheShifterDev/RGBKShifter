@@ -1,10 +1,10 @@
+--name
+F_DualPaletAtlas
 --output
 ./ExamplesOutput
 --format
 png
 --atlas
---name
-F_DualPaletAtlas
 --palet
 ./ExamplesData/Pallets/japanese-woodblock.png
 ./ExamplesData/Textures/ExampleA.png
