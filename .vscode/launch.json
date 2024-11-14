@@ -182,5 +182,24 @@
 			"cwd": "/home/matthew/Documents/Projects/CPP/rgbkShifter",
 			"program": "${workspaceFolder}/Built/rgbkshifter.bin"
 		},
+		{
+			"name": "Test extracting font glyphs",
+			"type": "lldb",
+			"request": "launch",
+			"args": [
+				"--output",
+				"./ExamplesOutput/Cutup",
+				"--cutup",
+				"--name",
+				"FontCutup",
+				"--format",
+				"png",
+				"./ExamplesData/Fonts/iosevka-regular.ttf"
+			],
+			"cwd": "/home/matthew/Documents/Projects/CPP/rgbkShifter",
+			"program": "${workspaceFolder}/Built/rgbkshifter.bin"
+
+
+		}
 	]
 }

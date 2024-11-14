@@ -774,6 +774,10 @@ StomaImagePack::Image Read_ttf(std::string NAM) {
 	uint32_t TransposingColourPosition;
 	uint32_t TargetColourPosition;
 	uint32_t CurrentChar;
+	
+	
+	std::string SourceDir;
+	std::string GroupName;
 
 	uint32_t RequiredWidth = 0;
 	uint32_t RequiredHeight = 0;
@@ -787,9 +791,8 @@ StomaImagePack::Image Read_ttf(std::string NAM) {
 			}
 			InitdFreeType = true;
 		}
-		std::string loc = NAM + ".ttf";
 		// --- load in fonts as desired size
-		err = FT_New_Face(FontLibrary,loc.c_str(),0,&TypeFace);
+		err = FT_New_Face(FontLibrary,(NAM+".ttf").c_str(),0,&TypeFace);
 		if(err != 0){
 			printf("freetype 'FT_New_Face' returned error %i\n",err);
 			exit((uint32_t)ExitCode::FREETYPEERROREXIT);
@@ -799,9 +802,10 @@ StomaImagePack::Image Read_ttf(std::string NAM) {
 			printf("freetype 'FT_Set_Pixel_Sizes' returned error %i\n",err);
 			exit((uint32_t)ExitCode::FREETYPEERROREXIT);
 		}
+		SliceOutLastOfChar(NAM, '/', SourceDir, GroupName);
 		// --- prepare fontgroup
 		ReturnImage.Groups.resize(1);
-		ReturnImage.Groups[0].Name = NAM;
+		ReturnImage.Groups[0].Name = GroupName;
 		ReturnImage.Groups[0].Type = StomaImagePack::GroupType::FONT;
 		ReturnImage.Groups[0].Glyphs.resize(DesiredGlyphCount);
 		// iterate to get size data for the glyphs to construct pixel buffer and glyphdata
@@ -821,7 +825,9 @@ StomaImagePack::Image Read_ttf(std::string NAM) {
 				exit((uint32_t)ExitCode::FREETYPEERROREXIT);
 			}
 			// --- put bitmap info data into glyph
-			ReturnImage.Groups[0].Glyphs[gl].Name = (char)gl+32;
+			ReturnImage.Groups[0].Glyphs[gl].Name = "char number '";
+			ReturnImage.Groups[0].Glyphs[gl].Name.append(std::to_string(gl+32));
+			ReturnImage.Groups[0].Glyphs[gl].Name.append("'");
 			ReturnImage.Groups[0].Glyphs[gl].Offset = {RequiredWidth,0};
 			ReturnImage.Groups[0].Glyphs[gl].Size = {TypeFace->glyph->bitmap.width,TypeFace->glyph->bitmap.rows};
 			// --- increase required width and height
