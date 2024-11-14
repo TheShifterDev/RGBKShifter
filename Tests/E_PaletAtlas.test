@@ -1,10 +1,12 @@
 --output
 ./ExamplesOutput
---atlas
 --format
-stimpac
+png
+--atlas
 --name
-TestAtlas
+E_PaletAtlas
+--palet
+./ExamplesData/Pallets/japanese-woodblock.png
 ./ExamplesData/Textures/ExampleA.png
 ./ExamplesData/Textures/ExampleB.png
 ./ExamplesData/Textures/ExampleC.png

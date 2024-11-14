@@ -1,8 +1,8 @@
 --out
-./ExamplesOutput/FontCutup
---cutup
+./ExamplesOutput
+--atlas
 --name
-FontCutupOutput
+H_FontRead
 --format
 png
 ./ExamplesData/Fonts/iosevka-regular.ttf

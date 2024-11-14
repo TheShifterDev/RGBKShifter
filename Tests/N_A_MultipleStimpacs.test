@@ -1,10 +1,10 @@
 --output
 ./ExamplesOutput
 --format
-png
---atlas
+stimpac
+--cutup
 --name
-TestDualPalletAtlas
+N_A_MultipleStimpacs
 --palet
 ./ExamplesData/Pallets/japanese-woodblock.png
 ./ExamplesData/Textures/ExampleA.png

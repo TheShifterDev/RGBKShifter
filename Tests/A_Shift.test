@@ -2,5 +2,5 @@
 ./ExamplesOutput
 --shift
 --name
-Shifted_ExampleA
+A_Shift
 ./ExamplesData/Textures/ExampleA.png

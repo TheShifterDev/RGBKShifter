@@ -1,13 +1,8 @@
 --output
 ./ExamplesOutput
---format
-png
---atlas
---name
-TestPalletAtlas
 --palet
 ./ExamplesData/Pallets/japanese-woodblock.png
-./ExamplesData/Textures/ExampleA.png
-./ExamplesData/Textures/ExampleB.png
+--name
+C_JapWoodPalet
 ./ExamplesData/Textures/ExampleC.png
 ./ExamplesData/Textures/ExampleD.png

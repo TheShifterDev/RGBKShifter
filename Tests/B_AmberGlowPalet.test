@@ -3,6 +3,6 @@
 --palet
 ./ExamplesData/Pallets/amber-glow.png
 --name
-Amber-Glow_Paletised_ExampleAandB
+B_AmberGlowPalet
 ./ExamplesData/Textures/ExampleA.png
 ./ExamplesData/Textures/ExampleB.png

@@ -1,8 +1,9 @@
 --output
 ./ExamplesOutput
---palet
-./ExamplesData/Pallets/japanese-woodblock.png
+--atlas
 --name
-Japanese-Woodblock_Paletised_ExampleCandD
+D_Atlas
+./ExamplesData/Textures/ExampleA.png
+./ExamplesData/Textures/ExampleB.png
 ./ExamplesData/Textures/ExampleC.png
 ./ExamplesData/Textures/ExampleD.png

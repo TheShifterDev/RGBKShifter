@@ -1,0 +1,11 @@
+--name
+N_B_MergeStimpacs
+--out
+./ExamplesOutput
+--atlas
+--format
+png
+./ExamplesOutput/N_A_MultipleStimpacs__ExampleA.stimpac
+./ExamplesOutput/N_A_MultipleStimpacs__ExampleB.stimpac
+./ExamplesOutput/N_A_MultipleStimpacs__ExampleC.stimpac
+./ExamplesOutput/N_A_MultipleStimpacs__ExampleD.stimpac

@@ -1,0 +1,6 @@
+--output
+./ExamplesOutput
+--cutup
+--name
+G_B_CutupAtlas
+./ExamplesOutput/G_A_StimpacAtlas.stimpac

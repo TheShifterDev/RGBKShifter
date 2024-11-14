@@ -1,8 +1,8 @@
---out
-./ExamplesOutput/FontCutup
---atlas
+--output
+./ExamplesOutput
+--cutup
 --name
-FontCutupOutput
+J_ExtractFontGlyphs
 --format
 png
 ./ExamplesData/Fonts/iosevka-regular.ttf

@@ -1,0 +1,7 @@
+--output
+./ExamplesOutput
+--atlas
+--name
+K_NoImage
+--format
+png

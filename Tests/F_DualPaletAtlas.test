@@ -1,9 +1,15 @@
 --output
 ./ExamplesOutput
+--format
+png
 --atlas
 --name
-TestAtlas
+F_DualPaletAtlas
+--palet
+./ExamplesData/Pallets/japanese-woodblock.png
 ./ExamplesData/Textures/ExampleA.png
 ./ExamplesData/Textures/ExampleB.png
+--palet
+./ExamplesData/Pallets/amber-glow.png
 ./ExamplesData/Textures/ExampleC.png
 ./ExamplesData/Textures/ExampleD.png
