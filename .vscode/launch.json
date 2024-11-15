@@ -285,9 +285,41 @@
 			"type": "lldb",
 			"request": "launch",
 			"args": [
+				"--name",
+				"O_NameGroup",
+				"--out",
+				"./ExamplesOutput",
+				"--cutup",
+				"--format",
+				"png",
+				"--group",
+				"GorbinoGroup",
+				"./ExamplesData/Textures/ExampleD.png",
 			],
 			"cwd": "/home/matthew/Documents/Projects/CPP/rgbkShifter",
 			"program": "${workspaceFolder}/Built/rgbkshifter.bin"
-		}
+		},
+		{
+			"name": "P_MultiGroup",
+			"type": "lldb",
+			"request": "launch",
+			"args": [
+				"--name",
+				"P_MultiGroup",
+				"--out",
+				"./ExamplesOutput",
+				"--cutup",
+				"--format",
+				"png",
+				"--group",
+				"GorbinoGroup",
+				"./ExamplesData/Textures/ExampleD.png",
+				"--group",
+				"BananaGroup",
+				"./ExamplesData/Textures/ExampleA.png",
+			],
+			"cwd": "/home/matthew/Documents/Projects/CPP/rgbkShifter",
+			"program": "${workspaceFolder}/Built/rgbkshifter.bin"
+		},
 	]
 }

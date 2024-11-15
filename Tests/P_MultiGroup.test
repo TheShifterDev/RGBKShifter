@@ -1,0 +1,13 @@
+--name
+P_MultiGroup
+--out
+./ExamplesOutput
+--cutup
+--format
+png
+--group
+GorbinoGroup
+./ExamplesData/Textures/ExampleD.png
+--group
+BananaGroup
+./ExamplesData/Textures/ExampleA.png

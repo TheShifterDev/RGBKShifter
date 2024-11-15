@@ -25,16 +25,18 @@ and debuging should be done via
 ```
 gdb --args ./Built/rgbkshifter.bin $(cat ./Tests/Shift.test)
 ```
+mass testing can be done via the 'unit test' script
+```
+./Autotest.sh
+```
 ## TODO
-* test way of naming groups
-* add way to request grouptype for read file
 * get handrolled png reading done
 * get handrolled png writing done
 * test handrolled png code tested
-* fix stimpac not having source name from read files
 * look into creating "sequences" for gifs/animations/variants/bumpmaps
 * make cross platform
 ## DONE
+* test way of naming groups
 * add way of naming groups
 * prevent creation of output files if no input files were read
 * fix freetype ttf reading outputing kneecaped glyphs
